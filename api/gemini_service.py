@@ -177,3 +177,125 @@ def analyze_poster_with_custom_prompt(image_file, custom_prompt=None):
             'success': False,
             'error': f'分析失败: {str(e)}'
         }
+
+
+def ocr_pdf_with_gemini(pdf_path):
+    """
+    使用 Gemini 3 Flash Preview 对 PDF 文件进行 OCR 识别
+
+    Args:
+        pdf_path: PDF 文件的绝对路径 (str 或 Path 对象)
+
+    Returns:
+        dict: 包含 OCR 结果的字典
+        {
+            "success": True/False,
+            "content": "识别的Markdown格式文本",
+            "error": "错误信息（如果失败）"
+        }
+    """
+    try:
+        import pathlib
+
+        # 从环境变量获取API密钥
+        api_key = os.getenv('GEMINI_API_KEY')
+
+        if not api_key:
+            logger.error('❌ GEMINI_API_KEY环境变量未设置')
+            return {
+                'success': False,
+                'error': 'GEMINI_API_KEY环境变量未设置，请在.env文件中配置'
+            }
+
+        # 转换为 Path 对象
+        pdf_file = pathlib.Path(pdf_path)
+
+        # 检查文件是否存在
+        if not pdf_file.exists():
+            logger.error(f'❌ PDF文件不存在: {pdf_path}')
+            return {
+                'success': False,
+                'error': f'PDF文件不存在: {pdf_path}'
+            }
+
+        # 检查文件大小
+        file_size_mb = pdf_file.stat().st_size / (1024 * 1024)
+        logger.info(f"📄 准备OCR识别PDF: {pdf_file.name}, 大小: {file_size_mb:.2f} MB")
+
+        # 创建Gemini客户端
+        client = genai.Client(api_key=api_key)
+
+        # 读取PDF字节数据
+        pdf_bytes = pdf_file.read_bytes()
+        logger.info(f"✅ 文件读取成功，字节大小: {len(pdf_bytes)}")
+
+        # 构建提示词（要求输出Markdown格式）
+        prompt_text = """请将此保险计划书PDF文档转换为Markdown格式文本。
+
+要求：
+1. 保留所有文字内容，包括标题、段落、列表
+2. 识别并转换表格为Markdown表格格式
+3. 保持原始文档的逻辑结构和层次
+4. 使用<table>标签标记表格（保留HTML格式更准确）
+5. 重要：表格字段名称必须原封不动保留，如"保单年度终结"、"保證現金價值"等不能翻译或改写
+6. 特别注意表格中的数字、百分比、金额等数据必须准确无误
+
+输出格式示例：
+# 标题
+## 子标题
+段落内容...
+
+<table>
+<tr><th>保单年度终结</th><th>保證現金價值</th></tr>
+<tr><td>1</td><td>10000</td></tr>
+</table>
+
+请开始转换："""
+
+        logger.info("🤖 正在调用Gemini Flash API进行OCR识别...")
+
+        # 构建请求
+        parts = [
+            types.Part.from_text(text=prompt_text),
+            types.Part.from_bytes(data=pdf_bytes, mime_type='application/pdf')
+        ]
+
+        contents = [
+            types.Content(
+                role="user",
+                parts=parts
+            )
+        ]
+
+        # 调用Gemini Flash API
+        response = client.models.generate_content(
+            model='gemini-3-flash-preview',  # 使用Flash版本（速度更快，成本更低）
+            contents=contents
+        )
+
+        # 获取识别结果
+        ocr_content = response.text
+        logger.info(f"✅ OCR识别完成，内容长度: {len(ocr_content)} 字符")
+        logger.info(f"📄 内容预览(前300字符): {ocr_content[:300]}")
+
+        # 检查内容是否为空
+        if not ocr_content or not ocr_content.strip():
+            logger.error("❌ OCR返回内容为空")
+            return {
+                'success': False,
+                'error': 'OCR识别结果为空'
+            }
+
+        return {
+            'success': True,
+            'content': ocr_content
+        }
+
+    except Exception as e:
+        logger.error(f"❌ Gemini OCR识别失败: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return {
+            'success': False,
+            'error': f'OCR识别失败: {str(e)}'
+        }

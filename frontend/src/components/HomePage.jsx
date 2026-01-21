@@ -43,8 +43,8 @@ function HomePage() {
     {
       category: '保单与计划书',
       tools: [
-        { name: '计划书分析工具', icon: Folder, action: () => isAuthenticated ? onNavigate('plan-management') : setShowLogin(true), color: 'from-blue-500 via-blue-600 to-indigo-700' },
-        { name: '计划书制作工具', icon: FileText, action: () => isAuthenticated ? onNavigate('plan-builder') : setShowLogin(true), color: 'from-indigo-500 via-purple-600 to-purple-700', disabled: true },
+        { name: '计划书分析和比对工具', icon: Folder, action: () => isAuthenticated ? onNavigate('plan-management') : setShowLogin(true), color: 'from-blue-500 via-blue-600 to-indigo-700' },
+        { name: '计划书制作工具', icon: FileText, action: () => isAuthenticated ? onNavigate('plan-builder') : setShowLogin(true), color: 'from-indigo-500 via-purple-600 to-purple-700' },
         { name: '港险产品比对工具', icon: FileText, action: () => onNavigate('company-comparison'), color: 'from-purple-500 via-purple-600 to-pink-700' },
       ]
     },

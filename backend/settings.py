@@ -142,6 +142,12 @@ STATICFILES_DIRS = [
     BASE_DIR / 'frontend' / 'dist' / 'assets',  # 前端构建的静态资源
 ]
 
+# 额外配置：直接服务前端的 assets 目录
+ASSETS_ROOT = BASE_DIR / 'frontend' / 'dist' / 'assets'
+
+# 前端构建目录（用于静态文件如图片、SVG等）
+FRONTEND_DIST_ROOT = BASE_DIR / 'frontend' / 'dist'
+
 # Media files (uploads)
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'

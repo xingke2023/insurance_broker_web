@@ -2,8 +2,8 @@
 保险公司和请求配置的API视图
 """
 import json
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework import status
 from .models import InsuranceCompany, InsuranceCompanyRequest
@@ -45,6 +45,8 @@ def get_insurance_companies(request):
 
 
 @api_view(['GET'])
+@authentication_classes([])  # 禁用自动认证，避免过期token导致401
+@permission_classes([AllowAny])  # 公开API，允许所有人访问
 def get_companies_standard_comparison(request):
     """
     获取所有保险公司的标准退保数据用于对比

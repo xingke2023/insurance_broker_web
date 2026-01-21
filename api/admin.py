@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django import forms
-from .models import InsurancePolicy, PlanDocument, AnnualValue, MembershipPlan, UserQuota, GeminiUsage, MediaLibrary, InsuranceCompany, InsuranceProduct, InsuranceCompanyRequest, PagePermission, UserProductSettings
+from .models import InsurancePolicy, PlanDocument, PlanTable, AnnualValue, MembershipPlan, UserQuota, GeminiUsage, MediaLibrary, InsuranceCompany, InsuranceProduct, InsuranceCompanyRequest, PagePermission, UserProductSettings, CustomerCase
 import json
 
 
@@ -70,6 +70,51 @@ class PlanDocumentAdmin(admin.ModelAdmin):
             return format_html('<pre style="white-space: pre-wrap; word-wrap: break-word; max-height: 500px; overflow-y: auto; background: #f5f5f5; padding: 10px; border-radius: 4px;">{}</pre>', obj.content)
         return '-'
     content_display.short_description = '完整OCR内容'
+
+
+@admin.register(PlanTable)
+class PlanTableAdmin(admin.ModelAdmin):
+    list_display = ['id', 'plan_document_display', 'table_number', 'table_name', 'row_count', 'fields_preview', 'created_at']
+    list_filter = ['plan_document', 'created_at']
+    search_fields = ['plan_document__file_name', 'table_name', 'fields']
+    ordering = ['plan_document', 'table_number']
+    readonly_fields = ['created_at', 'updated_at', 'html_source_display']
+
+    fieldsets = (
+        ('基本信息', {
+            'fields': ('plan_document', 'table_number', 'table_name', 'row_count')
+        }),
+        ('字段信息', {
+            'fields': ('fields',)
+        }),
+        ('HTML源代码', {
+            'fields': ('html_source_display',),
+            'classes': ('collapse',)
+        }),
+        ('时间信息', {
+            'fields': ('created_at', 'updated_at')
+        }),
+    )
+
+    def plan_document_display(self, obj):
+        """显示计划书"""
+        return f"{obj.plan_document.file_name}"
+    plan_document_display.short_description = '计划书'
+
+    def fields_preview(self, obj):
+        """字段预览"""
+        if obj.fields:
+            preview = obj.fields[:50] + '...' if len(obj.fields) > 50 else obj.fields
+            return format_html('<span style="color: #666;">{}</span>', preview)
+        return '-'
+    fields_preview.short_description = '字段'
+
+    def html_source_display(self, obj):
+        """HTML源代码显示"""
+        if obj.html_source:
+            return format_html('<pre style="white-space: pre-wrap; word-wrap: break-word; max-height: 500px; overflow-y: auto; background: #f5f5f5; padding: 10px; border-radius: 4px;">{}</pre>', obj.html_source)
+        return '-'
+    html_source_display.short_description = 'HTML源代码'
 
 
 @admin.register(AnnualValue)
@@ -1021,3 +1066,109 @@ class UserProductSettingsAdmin(admin.ModelAdmin):
     def product_count(self, obj):
         return len(obj.selected_product_ids) if obj.selected_product_ids else 0
     product_count.short_description = '选择的产品数量'
+
+
+@admin.register(CustomerCase)
+class CustomerCaseAdmin(admin.ModelAdmin):
+    """客户保险配置案例管理"""
+    list_display = [
+        'title',
+        'life_stage',
+        'customer_age_display',
+        'annual_income_display',
+        'total_premium_display',
+        'product_count',
+        'is_active',
+        'sort_order',
+        'created_at'
+    ]
+    list_filter = ['life_stage', 'is_active', 'created_at']
+    search_fields = ['title', 'case_description', 'family_structure', 'insurance_needs']
+    ordering = ['life_stage', 'sort_order', 'id']
+    readonly_fields = ['created_at', 'updated_at']
+
+    fieldsets = (
+        ('基本信息', {
+            'fields': ('title', 'life_stage', 'is_active', 'sort_order'),
+            'description': '案例的基本标识信息'
+        }),
+        ('客户资料', {
+            'fields': ('customer_age', 'annual_income', 'family_structure'),
+            'description': '客户的年龄、收入和家庭结构'
+        }),
+        ('保险需求', {
+            'fields': ('insurance_needs', 'budget_suggestion'),
+            'description': '客户的保险需求和预算建议'
+        }),
+        ('推荐产品', {
+            'fields': ('recommended_products', 'total_annual_premium'),
+            'description': '<strong>推荐产品列表配置</strong><br>'
+                         '• 格式: JSON数组<br>'
+                         '• 示例: [{"product_name": "储蓄计划A", "company": "友邦保险", "annual_premium": 50000, "coverage_type": "储蓄", "reason": "稳健增值"}]<br>'
+                         '• 字段说明：<br>'
+                         '  - product_name: 产品名称<br>'
+                         '  - company: 保险公司<br>'
+                         '  - annual_premium: 年缴保费<br>'
+                         '  - coverage_type: 保障类型（储蓄/重疾/医疗/寿险等）<br>'
+                         '  - reason: 推荐理由'
+        }),
+        ('案例详情', {
+            'fields': ('case_description', 'key_points', 'case_image'),
+            'description': '<strong>案例详细说明和关键要点</strong><br>'
+                         '• case_description: 案例的详细描述<br>'
+                         '• key_points: 关键要点列表（JSON数组，例如: ["要点1", "要点2", "要点3"]）<br>'
+                         '• case_image: 案例配图（可选）'
+        }),
+        ('时间信息', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def customer_age_display(self, obj):
+        """年龄显示"""
+        return format_html(
+            '<span style="color: #3498db; font-weight: bold;">{} 岁</span>',
+            obj.customer_age
+        )
+    customer_age_display.short_description = '客户年龄'
+
+    def annual_income_display(self, obj):
+        """年收入显示"""
+        formatted_amount = f'{obj.annual_income:,.0f}'
+        return format_html(
+            '<span style="color: #27ae60; font-weight: bold;">¥{}</span>',
+            formatted_amount
+        )
+    annual_income_display.short_description = '年收入'
+
+    def total_premium_display(self, obj):
+        """年缴保费总额显示"""
+        formatted_amount = f'{obj.total_annual_premium:,.0f}'
+        return format_html(
+            '<span style="color: #e67e22; font-weight: bold;">¥{}</span>',
+            formatted_amount
+        )
+    total_premium_display.short_description = '年缴保费总额'
+
+    def product_count(self, obj):
+        """推荐产品数量"""
+        count = len(obj.recommended_products) if obj.recommended_products else 0
+        if count > 0:
+            return format_html('<span style="color: #9b59b6; font-weight: bold;">{} 个</span>', count)
+        return format_html('<span style="color: #999;">0 个</span>')
+    product_count.short_description = '推荐产品数'
+
+    actions = ['activate_cases', 'deactivate_cases']
+
+    def activate_cases(self, request, queryset):
+        """批量启用案例"""
+        count = queryset.update(is_active=True)
+        self.message_user(request, f'成功启用 {count} 个案例')
+    activate_cases.short_description = '✅ 启用选中的案例'
+
+    def deactivate_cases(self, request, queryset):
+        """批量禁用案例"""
+        count = queryset.update(is_active=False)
+        self.message_user(request, f'成功禁用 {count} 个案例')
+    deactivate_cases.short_description = '❌ 禁用选中的案例'

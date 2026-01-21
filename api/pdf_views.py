@@ -20,6 +20,8 @@ def remove_pdf_footer(request):
     - remove_areas: JSON字符串，包含6个区域的配置
     - process_start_page: 处理开始页码，从原文件第几页开始处理（默认1）
     - page_number_start: 起始页码编号，从原文件第几页开始添加"第1页"（默认1）
+    - save_start_page: 保存起始页，只保存从这一页开始的内容（默认1）
+    - save_end_page: 保存结束页，0表示保存到最后一页（默认0）
     """
     print(f'\n🔄 收到PDF页脚移除请求')
     print(f'   用户: {request.user.username}')
@@ -63,6 +65,21 @@ def remove_pdf_footer(request):
                 page_number_start = 1
         except (ValueError, TypeError):
             page_number_start = 1
+
+        # 获取保存页面范围
+        try:
+            save_start_page = int(request.POST.get('save_start_page', 1))
+            if save_start_page < 1:
+                save_start_page = 1
+        except (ValueError, TypeError):
+            save_start_page = 1
+
+        try:
+            save_end_page = int(request.POST.get('save_end_page', 0))
+            if save_end_page < 0:
+                save_end_page = 0
+        except (ValueError, TypeError):
+            save_end_page = 0
 
         # 获取PDF密码（如果有）
         pdf_password = request.POST.get('pdf_password', '').strip()
@@ -123,6 +140,28 @@ def remove_pdf_footer(request):
                 'status': 'error',
                 'message': f'处理开始页码({process_start_page})超过PDF总页数({total_pages})'
             }, status=400)
+
+        # 验证保存页面范围
+        if save_start_page > total_pages:
+            pdf_document.close()
+            return Response({
+                'status': 'error',
+                'message': f'保存起始页({save_start_page})超过PDF总页数({total_pages})'
+            }, status=400)
+
+        # 如果save_end_page为0或超过总页数，设置为总页数
+        if save_end_page == 0 or save_end_page > total_pages:
+            save_end_page = total_pages
+
+        # 验证页面范围
+        if save_start_page > save_end_page:
+            pdf_document.close()
+            return Response({
+                'status': 'error',
+                'message': f'保存起始页({save_start_page})不能大于结束页({save_end_page})'
+            }, status=400)
+
+        print(f'   页面范围：保存第 {save_start_page} 页到第 {save_end_page} 页（共 {save_end_page - save_start_page + 1} 页）')
 
         # 遍历每一页，从处理开始页码开始处理（索引从0开始，所以需要-1）
         print(f'   开始处理页面：从第 {process_start_page} 页到第 {total_pages} 页')
@@ -221,6 +260,16 @@ def remove_pdf_footer(request):
                         color=(0, 0, 0),  # 黑色
                         align=fitz.TEXT_ALIGN_CENTER,  # 居中对齐
                     )
+
+        # 如果需要裁剪页面范围，创建新的PDF文档
+        if save_start_page > 1 or save_end_page < total_pages:
+            print(f'   裁剪页面范围：第 {save_start_page} 页到第 {save_end_page} 页')
+            # 创建新的PDF文档，只包含指定范围的页面
+            new_pdf = fitz.open()
+            for page_num in range(save_start_page - 1, save_end_page):
+                new_pdf.insert_pdf(pdf_document, from_page=page_num, to_page=page_num)
+            pdf_document.close()
+            pdf_document = new_pdf
 
         # 保存到内存，使用压缩选项
         print('   保存处理后的PDF...')

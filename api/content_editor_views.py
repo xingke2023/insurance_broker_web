@@ -203,11 +203,12 @@ def update_tablesummary(request, document_id):
         prompt = f"""以保单年度终结为坐标，分析以下保险计划书中的所有表格。
 
 要求：
-1. 识别所有以"保单年度终结"为坐标的表格
-2. 有些表格可能跨度好几个页面，但只算一张表，请完整识别
-3. 对每个表格提取：表详细名称、行数、基本字段
+1. **只识别包含"保单年度终结"或"保單年度終結"字段的表格**
+2. 如果表格中没有"保单年度终结"或"保單年度終結"列，请直接跳过该表格，不要输出
+3. 有些表格可能跨度好几个页面，但只算一张表，请完整识别
+4. 对每个表格提取：表详细名称、行数、基本字段
 
-只输出结果，不要有任何解释说明。
+只输出结果，不要有任何解释说明。如果没有找到任何包含"保单年度终结"的表格，请输出"未找到包含保单年度终结的表格"。
 
 输出格式示例：
 1.
@@ -221,13 +222,13 @@ def update_tablesummary(request, document_id):
 基本字段：保单年度终结,身故赔偿(保证金额,非保证金额,总额)
 
 计划书内容：
-{doc.content[:120000]}
+{doc.content}
 
 请直接返回分析结果，不要包含markdown代码块标记。"""
 
         logger.info("⏳ 开始调用 DeepSeek API 分析表格结构")
         logger.info(f"   OCR内容长度: {len(doc.content)} 字符")
-        logger.info(f"   使用内容长度: {min(len(doc.content), 12000)} 字符")
+        logger.info(f"   使用完整内容（无字符限制）")
 
         # 调用DeepSeek API
         response = client.chat.completions.create(
@@ -267,19 +268,97 @@ def update_tablesummary(request, document_id):
                 'message': '生成表格概要失败，返回内容为空'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # 保存到数据库
+        # 保存表格概要到数据库
         doc.tablesummary = content
         doc.save(update_fields=['tablesummary'])
 
         logger.info(f"✅ 表格概要已更新到数据库")
         logger.info(f"   概要长度: {len(content)} 字符")
         logger.info(f"   概要预览: {content[:200]}...")
+
+        # ========== 新增：提取并保存各个表格的HTML源代码（含跨页合并） ==========
+        try:
+            logger.info("🔍 开始提取各个表格的HTML源代码（含跨页合并）...")
+
+            # 导入tasks模块中的工具函数
+            from .tasks import (
+                parse_summary,
+                extract_tables_with_year_column,
+                group_tables_by_summary,
+                merge_table_tags,
+                find_table_title
+            )
+            from .models import PlanTable
+
+            # 解析表格概要
+            summary_tables = parse_summary(content)
+            logger.info(f"📋 概要识别到 {len(summary_tables)} 个逻辑表格")
+
+            # 提取包含"保单年度终结"的<table>标签
+            table_tags = extract_tables_with_year_column(doc.content)
+            logger.info(f"📊 提取到 {len(table_tags)} 个包含'保单年度终结'的<table>标签")
+
+            # 使用基于概要的分组策略
+            grouped = group_tables_by_summary(table_tags, summary_tables, doc.content)
+            logger.info(f"🔄 基于概要分组: {len(grouped)} 个逻辑表格")
+
+            # 清空旧数据
+            PlanTable.objects.filter(plan_document=doc).delete()
+            logger.info("🗑️  已清空旧表格数据")
+
+            # 保存每个表格
+            saved_count = 0
+            for table_number in sorted(grouped.keys()):
+                table_group = grouped[table_number]
+
+                # 合并<table>标签
+                merged_html = merge_table_tags(table_group)
+                total_rows = sum(tag['row_count'] for tag in table_group)
+
+                # 为每个<table>查找前面的标题
+                first_tag = table_group[0]
+                table_title = find_table_title(doc.content, first_tag['start_pos'])
+
+                # 从summary_tables中获取表格名称和字段
+                matched_summary = None
+                for summary in summary_tables:
+                    if summary['number'] == table_number:
+                        matched_summary = summary
+                        break
+
+                table_name = matched_summary['name'] if matched_summary else table_title
+                fields = matched_summary['fields'] if matched_summary else ''
+
+                # 保存到数据库
+                PlanTable.objects.create(
+                    plan_document=doc,
+                    table_number=table_number,
+                    table_name=table_name,
+                    row_count=total_rows,
+                    fields=fields,
+                    html_source=merged_html
+                )
+
+                merge_info = f"合并了{len(table_group)}个<table>" if len(table_group) > 1 else ""
+                logger.info(f"   ✅ 表格 {table_number}: {table_name} ({total_rows}行) {merge_info}")
+                saved_count += 1
+
+            logger.info(f"💾 成功保存 {saved_count} 个表格到数据库")
+
+        except Exception as table_error:
+            logger.error(f"⚠️  提取表格HTML时发生错误: {table_error}")
+            logger.error("   表格概要已保存，但表格HTML提取失败")
+            import traceback
+            logger.error(traceback.format_exc())
+            # 不阻断主流程，继续返回成功
+
         logger.info("="*80)
 
         return Response({
             'status': 'success',
             'tablesummary': content,
-            'message': '表格概要更新成功'
+            'tables_count': saved_count if 'saved_count' in locals() else 0,
+            'message': '表格概要和表格HTML更新成功（含跨页合并）'
         })
 
     except Exception as e:
@@ -405,7 +484,7 @@ def process_surrender_value_table(document_id):
         logger.info("="*80)
         logger.info("⏳ 第二步：调用 DeepSeek API 提取基本计划退保价值表数据")
         logger.info(f"   OCR内容长度: {len(doc.content)} 字符")
-        logger.info(f"   使用内容长度: {min(len(doc.content), 120000)} 字符")
+        logger.info(f"   使用完整内容（无字符限制）")
 
         extract_prompt = f"""从计划书内容中提取基本计划的退保价值表数据（非无忧选，非提取）。
 
@@ -424,7 +503,7 @@ def process_surrender_value_table(document_id):
 }}
 
 计划书内容：
-{doc.content[:120000]}
+{doc.content}
 
 请直接返回JSON格式数据，不要包含任何其他文字或markdown标记。"""
 
@@ -638,7 +717,7 @@ def process_wellness_table(document_id):
         logger.info("="*80)
         logger.info("⏳ 第二步：调用 DeepSeek API 提取无忧选退保价值表数据")
         logger.info(f"   OCR内容长度: {len(doc.content)} 字符")
-        logger.info(f"   使用内容长度: {min(len(doc.content), 220000)} 字符")
+        logger.info(f"   使用完整内容（无字符限制）")
 
         extract_prompt = f"""从计划书内容中提取无忧选退保价值表数据（也就是数据字段包含非保证入息或入息的表）。
 
@@ -656,7 +735,7 @@ def process_wellness_table(document_id):
 }}
 
 计划书内容：
-{doc.content[:120000]}
+{doc.content}
 
 请直接返回JSON格式数据，不要包含任何其他文字或markdown标记。"""
 

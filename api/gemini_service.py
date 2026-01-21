@@ -6,6 +6,106 @@ from google.genai import types
 logger = logging.getLogger(__name__)
 
 
+def get_gemini_client():
+    """
+    获取Gemini客户端，支持主密钥和备用密钥的自动切换
+
+    Returns:
+        tuple: (client, api_key) - Gemini客户端和使用的API密钥
+    """
+    # 获取主API密钥
+    primary_key = os.getenv('GEMINI_API_KEY')
+    # 获取备用API密钥
+    fallback_key = os.getenv('GEMINI_API_KEY_FALLBACK')
+
+    if not primary_key:
+        logger.error('❌ GEMINI_API_KEY环境变量未设置')
+        return None, None
+
+    # 优先使用主密钥
+    try:
+        client = genai.Client(api_key=primary_key)
+        logger.info(f"🔑 使用主API密钥: {primary_key[:10]}...")
+        return client, primary_key
+    except Exception as e:
+        logger.warning(f"⚠️ 主API密钥初始化失败: {str(e)}")
+
+        # 如果主密钥失败且备用密钥存在，尝试备用密钥
+        if fallback_key:
+            try:
+                client = genai.Client(api_key=fallback_key)
+                logger.info(f"🔑 切换到备用API密钥: {fallback_key[:10]}...")
+                return client, fallback_key
+            except Exception as e2:
+                logger.error(f"❌ 备用API密钥也初始化失败: {str(e2)}")
+
+        return None, None
+
+
+def call_gemini_with_fallback(model, contents, operation_name="API调用"):
+    """
+    调用Gemini API并支持自动重试备用密钥
+
+    Args:
+        model: 模型名称 (如 'gemini-3-pro-preview')
+        contents: API请求内容
+        operation_name: 操作名称（用于日志）
+
+    Returns:
+        response: API响应对象
+
+    Raises:
+        Exception: 当所有API密钥都失败时抛出异常
+    """
+    # 获取API密钥列表
+    api_keys = []
+    primary_key = os.getenv('GEMINI_API_KEY')
+    fallback_key = os.getenv('GEMINI_API_KEY_FALLBACK')
+
+    if primary_key:
+        api_keys.append(('主密钥', primary_key))
+    if fallback_key:
+        api_keys.append(('备用密钥', fallback_key))
+
+    if not api_keys:
+        raise Exception('未配置任何Gemini API密钥')
+
+    last_error = None
+
+    # 依次尝试每个API密钥
+    for key_name, api_key in api_keys:
+        try:
+            logger.info(f"🔑 [{operation_name}] 尝试使用{key_name}: {api_key[:10]}...")
+
+            client = genai.Client(api_key=api_key)
+            response = client.models.generate_content(
+                model=model,
+                contents=contents
+            )
+
+            logger.info(f"✅ [{operation_name}] {key_name}调用成功")
+            return response
+
+        except Exception as e:
+            error_msg = str(e)
+            logger.warning(f"⚠️ [{operation_name}] {key_name}失败: {error_msg}")
+
+            # 检查是否是配额/限流错误
+            is_quota_error = any(keyword in error_msg.lower() for keyword in [
+                'quota', 'rate limit', 'resource exhausted', '429', 'too many requests'
+            ])
+
+            if is_quota_error:
+                logger.warning(f"📊 [{operation_name}] 检测到{key_name}超额限制，尝试下一个密钥...")
+
+            last_error = e
+            continue
+
+    # 所有密钥都失败
+    logger.error(f"❌ [{operation_name}] 所有API密钥均失败")
+    raise last_error if last_error else Exception('所有API密钥均失败')
+
+
 def analyze_poster(image_file):
     """
     使用Google Gemini分析海报图片
@@ -22,20 +122,6 @@ def analyze_poster(image_file):
         }
     """
     try:
-        # 从环境变量获取API密钥
-        api_key = os.getenv('GEMINI_API_KEY')
-        logger.info(f"🔑 Gemini API Key检查: {'已配置' if api_key else '未配置'}")
-
-        if not api_key:
-            logger.error('❌ GEMINI_API_KEY环境变量未设置')
-            return {
-                'success': False,
-                'error': 'GEMINI_API_KEY环境变量未设置，请在.env文件中配置'
-            }
-
-        # 创建Gemini客户端
-        client = genai.Client(api_key=api_key)
-
         logger.info(f"📤 开始上传海报图片，文件大小: {image_file.size} 字节")
 
         # 读取图片内容
@@ -85,10 +171,11 @@ def analyze_poster(image_file):
             )
         ]
 
-        # 调用Gemini API
-        response = client.models.generate_content(
-            model='gemini-3-pro-preview',  # 使用Gemini 3 Pro Preview模型
-            contents=contents
+        # 使用支持fallback的API调用
+        response = call_gemini_with_fallback(
+            model='gemini-3-pro-preview',
+            contents=contents,
+            operation_name="海报分析"
         )
 
         # 获取分析结果
@@ -123,18 +210,6 @@ def analyze_poster_with_custom_prompt(image_file, custom_prompt=None):
         dict: 包含分析结果的字典
     """
     try:
-        # 从环境变量获取API密钥
-        api_key = os.getenv('GEMINI_API_KEY')
-
-        if not api_key:
-            return {
-                'success': False,
-                'error': 'GEMINI_API_KEY环境变量未设置'
-            }
-
-        # 创建Gemini客户端
-        client = genai.Client(api_key=api_key)
-
         # 读取图片
         image_bytes = image_file.read()
         content_type = image_file.content_type
@@ -158,10 +233,11 @@ def analyze_poster_with_custom_prompt(image_file, custom_prompt=None):
             )
         ]
 
-        # 调用API
-        response = client.models.generate_content(
+        # 使用支持fallback的API调用
+        response = call_gemini_with_fallback(
             model='gemini-3-pro-preview',
-            contents=contents
+            contents=contents,
+            operation_name="自定义提示词海报分析"
         )
 
         return {
@@ -197,16 +273,6 @@ def ocr_pdf_with_gemini(pdf_path):
     try:
         import pathlib
 
-        # 从环境变量获取API密钥
-        api_key = os.getenv('GEMINI_API_KEY')
-
-        if not api_key:
-            logger.error('❌ GEMINI_API_KEY环境变量未设置')
-            return {
-                'success': False,
-                'error': 'GEMINI_API_KEY环境变量未设置，请在.env文件中配置'
-            }
-
         # 转换为 Path 对象
         pdf_file = pathlib.Path(pdf_path)
 
@@ -222,35 +288,25 @@ def ocr_pdf_with_gemini(pdf_path):
         file_size_mb = pdf_file.stat().st_size / (1024 * 1024)
         logger.info(f"📄 准备OCR识别PDF: {pdf_file.name}, 大小: {file_size_mb:.2f} MB")
 
-        # 创建Gemini客户端
-        client = genai.Client(api_key=api_key)
-
         # 读取PDF字节数据
         pdf_bytes = pdf_file.read_bytes()
         logger.info(f"✅ 文件读取成功，字节大小: {len(pdf_bytes)}")
 
-        # 构建提示词（要求输出Markdown格式）
-        prompt_text = """请将此保险计划书PDF文档转换为Markdown格式文本。
+        # 构建提示词（直接返回OCR结果）
+        prompt_text = """请对此PDF文档进行OCR识别，返回识别结果。
 
 要求：
-1. 保留所有文字内容，包括标题、段落、列表
-2. 识别并转换表格为Markdown表格格式
-3. 保持原始文档的逻辑结构和层次
-4. 使用<table>标签标记表格（保留HTML格式更准确）
-5. 重要：表格字段名称必须原封不动保留，如"保单年度终结"、"保證現金價值"等不能翻译或改写
-6. 特别注意表格中的数字、百分比、金额等数据必须准确无误
+1. 原样返回所有识别到的文字内容
+2. 保持原始文档的排版和格式
+3. 表格请用HTML <table>标签标记，使用紧凑格式（单行，无换行）
+4. 不要添加任何解释、总结或额外说明
+5. 字段名称必须原封不动，不要翻译或改写
+6. 数字、符号、标点必须准确
 
-输出格式示例：
-# 标题
-## 子标题
-段落内容...
+表格格式示例（紧凑单行）：
+<table><tr><th>列1</th><th>列2</th></tr><tr><td>值1</td><td>值2</td></tr></table>
 
-<table>
-<tr><th>保单年度终结</th><th>保證現金價值</th></tr>
-<tr><td>1</td><td>10000</td></tr>
-</table>
-
-请开始转换："""
+直接返回OCR识别结果："""
 
         logger.info("🤖 正在调用Gemini Flash API进行OCR识别...")
 
@@ -267,10 +323,11 @@ def ocr_pdf_with_gemini(pdf_path):
             )
         ]
 
-        # 调用Gemini Flash API
-        response = client.models.generate_content(
-            model='gemini-3-flash-preview',  # 使用Flash版本（速度更快，成本更低）
-            contents=contents
+        # 使用支持fallback的API调用
+        response = call_gemini_with_fallback(
+            model='gemini-3-flash-preview',
+            contents=contents,
+            operation_name="PDF OCR识别"
         )
 
         # 获取识别结果

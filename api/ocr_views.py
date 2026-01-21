@@ -4,7 +4,7 @@ from rest_framework.response import Response
 from rest_framework import status
 from django.core.files.base import ContentFile
 from django.utils import timezone
-from .models import PlanDocument
+from .models import PlanDocument, PlanTable
 from .deepseek_service import analyze_insurance_table, extract_plan_data_from_text, extract_plan_summary
 from .tasks import process_document_pipeline  # 使用Celery任务替代线程
 from .permissions import IsMemberActive
@@ -13,6 +13,8 @@ import base64
 import logging
 import os
 from openai import OpenAI
+from google import genai
+from google.genai import types
 
 logger = logging.getLogger(__name__)
 
@@ -119,9 +121,10 @@ def save_ocr_result(request):
         # 保存到数据库
         plan_doc.save()
 
-        # 使用Celery启动异步任务流水线（处理基本信息、年度表、概要）
-        process_document_pipeline.apply_async(args=[plan_doc.id], countdown=1)
-        logger.info(f"✅ 文档 {plan_doc.id} 已保存，Celery任务已调度")
+        # 使用Celery启动任务：步骤0（OCR识别）→ 步骤1（提取表格源代码）→ 步骤2（提取表格概要+HTML）
+        from api.tasks import ocr_document_task
+        ocr_document_task.apply_async(args=[plan_doc.id], countdown=1)
+        logger.info(f"✅ 文档 {plan_doc.id} 已保存，Celery任务已调度（步骤0→步骤1→步骤2）")
 
         return Response({
             'status': 'success',
@@ -261,6 +264,7 @@ def get_saved_documents(request):
             data.append({
                 'id': doc.id,
                 'file_name': doc.file_name,
+                'file_path': doc.file_path.url if doc.file_path else None,  # PDF文件下载路径
                 'file_size': doc.file_size,
                 'status': doc.status,
 
@@ -326,8 +330,25 @@ def get_document_detail(request, document_id):
         table_count = len(doc.table.get('years', [])) if doc.table else 0
 
         # 解析table1和table2 JSON字符串为对象
+        # 优先从AnnualValue数据库获取（HTML解析器存储在这里）
         table1_data = None
-        if doc.table1:
+        if doc.annual_values.exists():
+            # 从AnnualValue构建table1数据结构
+            annual_values = doc.annual_values.all().order_by('policy_year')
+            table1_data = {
+                'table_name': '保单年度价值表',
+                'fields': ['保单年度终结', '保证现金价值', '非保证现金价值', '总现金价值'],
+                'data': []
+            }
+            for av in annual_values:
+                table1_data['data'].append([
+                    av.policy_year,
+                    str(av.guaranteed_cash_value) if av.guaranteed_cash_value is not None else '-',
+                    str(av.non_guaranteed_cash_value) if av.non_guaranteed_cash_value is not None else '-',
+                    str(av.total_cash_value) if av.total_cash_value is not None else '-'
+                ])
+        elif doc.table1:
+            # 如果没有AnnualValue，尝试从table1字段获取（旧方式）
             try:
                 table1_data = json.loads(doc.table1)
             except (json.JSONDecodeError, TypeError):
@@ -345,6 +366,7 @@ def get_document_detail(request, document_id):
             'data': {
                 'id': doc.id,
                 'file_name': doc.file_name,
+                'file_path': doc.file_path.url if doc.file_path else None,  # PDF文件路径
                 'file_size': doc.file_size,
                 'status': doc.status,
                 'processing_stage': doc.processing_stage,
@@ -385,6 +407,19 @@ def get_document_detail(request, document_id):
 
                 # 计划书Table概要
                 'tablesummary': doc.tablesummary if doc.tablesummary else '',
+
+                # 计划书各个表格列表
+                'plan_tables': [
+                    {
+                        'id': table.id,
+                        'table_number': table.table_number,
+                        'table_name': table.table_name,
+                        'row_count': table.row_count,
+                        'fields': table.fields,
+                        'created_at': table.created_at.isoformat()
+                    }
+                    for table in doc.plan_tables.all().order_by('table_number')
+                ],
 
                 # 其他数据
                 'extracted_data': doc.extracted_data,
@@ -772,19 +807,16 @@ def chat_with_document(request, document_id):
                 'message': '消息不能为空'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # 获取DeepSeek API密钥
-        api_key = os.getenv('DEEPSEEK_API_KEY')
+        # 获取Gemini API密钥
+        api_key = os.getenv('GEMINI_API_KEY')
         if not api_key:
             return Response({
                 'status': 'error',
-                'message': 'DeepSeek API密钥未配置'
+                'message': 'Gemini API密钥未配置'
             }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
-        # 初始化DeepSeek客户端
-        client = OpenAI(
-            api_key=api_key,
-            base_url="https://api.deepseek.com"
-        )
+        # 初始化Gemini客户端
+        client = genai.Client(api_key=api_key)
 
         # 构建系统提示词，包含完整文档内容
         system_prompt = f"""你是一个专业的保险计划书助手。你正在帮助用户理解以下保险计划书的内容。
@@ -810,12 +842,8 @@ def chat_with_document(request, document_id):
 
 请根据以上完整的计划书内容回答用户的问题。如果用户询问的信息在文档中没有，请明确告知。回答要专业、准确、简洁。你可以引用文档中的具体内容来支持你的回答。"""
 
-        # 构建对话历史
-        messages = [
-            {"role": "system", "content": system_prompt}
-        ]
-
-        # 添加历史对话（排除系统消息和欢迎消息）
+        # 构建对话历史（Gemini格式）
+        # Gemini使用 system_instruction 而不是 system role
         # 只保留最近的10轮对话（20条消息：10条用户+10条助手）
         MAX_HISTORY_MESSAGES = 20
         filtered_history = []
@@ -825,22 +853,23 @@ def chat_with_document(request, document_id):
                 # 跳过欢迎消息
                 if msg.get('role') == 'assistant' and '我是计划书助手' in msg.get('content', ''):
                     continue
+                # Gemini使用 'model' 而不是 'assistant'
+                role = 'model' if msg.get('role') == 'assistant' else 'user'
                 filtered_history.append({
-                    "role": msg['role'],
-                    "content": msg['content']
+                    "role": role,
+                    "parts": [{"text": msg['content']}]
                 })
 
         # 只取最近的消息
         recent_history = filtered_history[-MAX_HISTORY_MESSAGES:] if len(filtered_history) > MAX_HISTORY_MESSAGES else filtered_history
-        messages.extend(recent_history)
 
         # 添加当前用户消息
-        messages.append({
+        recent_history.append({
             "role": "user",
-            "content": user_message
+            "parts": [{"text": user_message}]
         })
 
-        logger.info(f"💬 历史消息数: {len(recent_history)}, 总消息数: {len(messages)}")
+        logger.info(f"💬 历史消息数: {len(filtered_history)}, 总消息数: {len(recent_history)}")
 
         logger.info(f"💬 计划书助手 - 文档ID: {document_id}, 消息: {user_message[:50]}..., 流式: {use_stream}")
 
@@ -850,23 +879,27 @@ def chat_with_document(request, document_id):
 
             def generate_stream():
                 try:
-                    stream = client.chat.completions.create(
-                        model="deepseek-chat",
-                        messages=messages,
-                        temperature=0.3,
-                        max_tokens=1000,
-                        stream=True
+                    # 使用Gemini API进行流式生成
+                    response = client.models.generate_content_stream(
+                        model='gemini-2.0-flash-exp',  # 使用 Gemini 3 Flash Preview (2.0-flash-exp)
+                        contents=recent_history,
+                        config=types.GenerateContentConfig(
+                            system_instruction=system_prompt,
+                            temperature=0.3,
+                            max_output_tokens=2000,
+                        )
                     )
 
-                    for chunk in stream:
-                        if chunk.choices[0].delta.content:
-                            content = chunk.choices[0].delta.content
-                            yield f"data: {json.dumps({'content': content})}\n\n"
+                    for chunk in response:
+                        if chunk.text:
+                            yield f"data: {json.dumps({'content': chunk.text})}\n\n"
 
                     yield "data: [DONE]\n\n"
 
                 except Exception as e:
                     logger.error(f"❌ 流式输出错误: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
                     yield f"data: {json.dumps({'error': str(e)})}\n\n"
 
             response = StreamingHttpResponse(generate_stream(), content_type='text/event-stream')
@@ -876,15 +909,18 @@ def chat_with_document(request, document_id):
 
         # 非流式输出（保留原有逻辑）
         else:
-            response = client.chat.completions.create(
-                model="deepseek-chat",
-                messages=messages,
-                temperature=0.3,
-                max_tokens=1000
+            response = client.models.generate_content(
+                model='gemini-2.0-flash-exp',  # 使用 Gemini 3 Flash Preview (2.0-flash-exp)
+                contents=recent_history,
+                config=types.GenerateContentConfig(
+                    system_instruction=system_prompt,
+                    temperature=0.3,
+                    max_output_tokens=2000,
+                )
             )
 
             # 获取AI回复
-            ai_reply = response.choices[0].message.content.strip()
+            ai_reply = response.text.strip()
 
             logger.info(f"✅ AI回复: {ai_reply[:100]}...")
 
@@ -1398,38 +1434,18 @@ def retry_failed_document(request, document_id):
 
         # 根据retry_stage决定执行哪些任务
         if retry_stage == 'all':
-            # 重新执行完整流水线
+            # 重新执行完整流水线（从步骤1开始）
             doc.processing_stage = 'pending'
             doc.status = 'processing'
             doc.save()
-            from .tasks import extract_basic_info_task
-            extract_basic_info_task.apply_async(args=[document_id], countdown=1)
-            logger.info("✅ 已启动完整流水线重试")
-
-        elif retry_stage == 'basic_info':
-            # 只重试基本信息提取
-            doc.processing_stage = 'pending'
-            doc.save()
-            from .tasks import extract_basic_info_task
-            extract_basic_info_task.apply_async(args=[document_id], countdown=1)
-            logger.info("✅ 已启动基本信息提取重试")
-
-        elif retry_stage == 'table':
-            # 只重试年度价值表提取
-            from .tasks import extract_table_task
-            extract_table_task.apply_async(args=[document_id], countdown=1)
-            logger.info("✅ 已启动年度价值表提取重试")
-
-        elif retry_stage == 'summary':
-            # 只重试计划书概要提取
-            from .tasks import extract_summary_task
-            extract_summary_task.apply_async(args=[document_id], countdown=1)
-            logger.info("✅ 已启动计划书概要提取重试")
+            from .tasks import extract_tablecontent_task
+            extract_tablecontent_task.apply_async(args=[document_id], countdown=1)
+            logger.info("✅ 已启动完整流水线重试（步骤1→步骤2）")
 
         else:
             return Response({
                 'status': 'error',
-                'message': f'不支持的重试阶段: {retry_stage}'
+                'message': f'不支持的重试阶段: {retry_stage}，当前仅支持 retry_stage=all'
             }, status=status.HTTP_400_BAD_REQUEST)
 
         logger.info("=" * 80)
@@ -1524,14 +1540,30 @@ def upload_pdf_async(request):
 
         # 创建PlanDocument记录
         plan_doc = PlanDocument()
-        plan_doc.file_name = uploaded_file.name
+        plan_doc.file_name = uploaded_file.name  # 保存原始文件名（显示用）
         plan_doc.file_size = uploaded_file.size
         plan_doc.user = user_obj
         plan_doc.status = 'processing'
         plan_doc.processing_stage = 'ocr_pending'
 
-        # 保存文件到 media 目录
-        plan_doc.file_path.save(uploaded_file.name, uploaded_file, save=False)
+        # 生成带时间戳的唯一文件名（避免冲突）
+        import os
+        from datetime import datetime
+        import re
+
+        # 提取文件扩展名
+        file_ext = os.path.splitext(uploaded_file.name)[1]  # .pdf
+
+        # 清理原始文件名（移除扩展名，替换特殊字符）
+        original_name = os.path.splitext(uploaded_file.name)[0]
+        safe_name = re.sub(r'[^\w\s\-\_\u4e00-\u9fff]', '_', original_name)  # 保留中文、字母、数字、下划线、连字符
+
+        # 生成唯一文件名：原名_时间戳.pdf
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        unique_filename = f"{safe_name}_{timestamp}{file_ext}"
+
+        # 保存文件到 media/plan_documents/ 目录
+        plan_doc.file_path.save(unique_filename, uploaded_file, save=False)
 
         # 保存记录到数据库
         plan_doc.save()
@@ -1566,4 +1598,371 @@ def upload_pdf_async(request):
         return Response({
             'status': 'error',
             'message': f'文件上传失败: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+# 已删除的手动触发函数：extract_basic_info_manual, extract_summary_manual
+# 这些任务已从Celery流程中移除
+
+
+@api_view(['GET'])
+def get_table_detail(request, table_id):
+    """
+    获取单个表格的详细信息（包含HTML源代码）
+
+    Args:
+        table_id: PlanTable的ID
+
+    Returns:
+        表格详细信息，包含HTML源代码
+    """
+    try:
+        table = PlanTable.objects.select_related('plan_document').get(id=table_id)
+
+        return Response({
+            'status': 'success',
+            'data': {
+                'id': table.id,
+                'table_number': table.table_number,
+                'table_name': table.table_name,
+                'row_count': table.row_count,
+                'fields': table.fields,
+                'html_source': table.html_source,
+                'plan_document': {
+                    'id': table.plan_document.id,
+                    'file_name': table.plan_document.file_name
+                },
+                'created_at': table.created_at.isoformat(),
+                'updated_at': table.updated_at.isoformat()
+            }
+        })
+
+    except PlanTable.DoesNotExist:
+        return Response({
+            'status': 'error',
+            'message': '表格不存在'
+        }, status=status.HTTP_404_NOT_FOUND)
+    except Exception as e:
+        return Response({
+            'status': 'error',
+            'message': f'获取失败: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reextract_tablecontent(request, document_id):
+    """
+    重新提取表格源代码
+    基于doc.content字段，重新触发步骤1：提取表格源代码
+
+    路径参数：
+        document_id: 文档ID
+
+    返回：
+        {
+            "status": "success" | "error",
+            "message": "提示信息"
+        }
+    """
+    from .tasks import extract_tablecontent_task
+
+    try:
+        # 获取文档
+        try:
+            doc = PlanDocument.objects.get(id=document_id)
+        except PlanDocument.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'message': f'文档 {document_id} 不存在'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # 检查权限：只有文档所有者可以操作
+        if doc.user and doc.user != request.user:
+            return Response({
+                'status': 'error',
+                'message': '无权操作此文档'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # 检查content是否存在
+        if not doc.content:
+            return Response({
+                'status': 'error',
+                'message': 'OCR内容为空，无法重新提取表格。请先确保文档已完成OCR识别。'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # 更新状态
+        doc.processing_stage = 'extracting_tablecontent'
+        doc.save(update_fields=['processing_stage'])
+
+        # 直接触发步骤1：提取表格源代码（手动模式，不自动触发步骤2）
+        extract_tablecontent_task.apply_async(
+            args=[document_id],
+            kwargs={'auto_trigger_next': False},
+            countdown=1
+        )
+
+        logger.info(f"✅ 已触发文档 {document_id} 的表格源代码重新提取任务（手动模式）")
+
+        return Response({
+            'status': 'success',
+            'message': '表格源代码重新提取任务已启动，请稍后刷新查看结果',
+            'data': {
+                'document_id': doc.id,
+                'processing_stage': doc.processing_stage
+            }
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.error(f"❌ 触发表格源代码重新提取失败: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return Response({
+            'status': 'error',
+            'message': f'触发表格源代码重新提取失败: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reextract_table1(request, document_id):
+    """
+    重新提取保单价值表（改进版：使用HTML解析器）
+
+    新逻辑：
+    1. 检查是否有PlanTable记录
+    2. 使用HTML解析器从PlanTable直接提取年度价值数据
+    3. 保存到AnnualValue数据库
+
+    优势：
+    - 不依赖Gemini API（避免输出截断问题）
+    - 速度更快
+    - 支持任意行数的表格
+
+    路径参数：
+        document_id: 文档ID
+
+    返回：
+        {
+            "status": "success" | "error",
+            "message": "提示信息",
+            "data": {
+                "count": 记录数,
+                "year_range": "年度范围"
+            }
+        }
+    """
+    from .html_table_parser import extract_and_save_annual_values
+
+    try:
+        # 获取文档
+        try:
+            doc = PlanDocument.objects.get(id=document_id)
+        except PlanDocument.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'message': f'文档 {document_id} 不存在'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # 检查权限：只有文档所有者可以操作
+        if doc.user and doc.user != request.user:
+            return Response({
+                'status': 'error',
+                'message': '无权操作此文档'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # 检查PlanTable是否存在
+        plan_tables_count = doc.plan_tables.count()
+        if plan_tables_count == 0:
+            return Response({
+                'status': 'error',
+                'message': '文档没有PlanTable记录，无法提取保单价值表。请先完成表格分析。'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        logger.info(f"📊 开始从文档 {document_id} 的 {plan_tables_count} 个PlanTable中提取年度价值数据")
+
+        # 使用HTML解析器提取并保存数据
+        result = extract_and_save_annual_values(doc)
+
+        if result['success']:
+            logger.info(f"✅ 文档 {document_id} 的保单价值表提取成功：{result['count']} 条记录")
+
+            return Response({
+                'status': 'success',
+                'message': result['message'],
+                'data': {
+                    'document_id': doc.id,
+                    'count': result['count'],
+                    'year_range': result.get('year_range', '')
+                }
+            }, status=status.HTTP_200_OK)
+        else:
+            logger.warning(f"⚠️ 文档 {document_id} 的保单价值表提取失败：{result.get('error', '未知错误')}")
+
+            return Response({
+                'status': 'error',
+                'message': result['message'],
+                'error': result.get('error', '')
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+    except Exception as e:
+        logger.error(f"❌ 触发保单价值表重新提取失败: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return Response({
+            'status': 'error',
+            'message': f'提取失败: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def re_ocr_document(request, document_id):
+    """
+    重新OCR识别
+    基于doc.file_path字段，重新调用PaddleLayout API进行OCR识别
+
+    路径参数：
+        document_id: 文档ID
+
+    返回：
+        {
+            "status": "success" | "error",
+            "message": "提示信息"
+        }
+    """
+    from .tasks import ocr_document_task
+
+    try:
+        # 获取文档
+        try:
+            doc = PlanDocument.objects.get(id=document_id)
+        except PlanDocument.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'message': f'文档 {document_id} 不存在'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # 检查权限：只有文档所有者可以操作
+        if doc.user and doc.user != request.user:
+            return Response({
+                'status': 'error',
+                'message': '无权操作此文档'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # 检查file_path是否存在
+        if not doc.file_path:
+            return Response({
+                'status': 'error',
+                'message': 'PDF文件路径不存在，无法重新OCR识别'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # 检查文件是否存在
+        import os
+        file_full_path = doc.file_path.path  # FieldFile对象的.path属性返回完整路径
+        if not os.path.exists(file_full_path):
+            return Response({
+                'status': 'error',
+                'message': f'PDF文件不存在: {doc.file_path.name}'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # 更新状态
+        doc.processing_stage = 'ocr_processing'
+        doc.save(update_fields=['processing_stage'])
+
+        # 触发步骤0：OCR识别（自动触发后续步骤）
+        ocr_document_task.apply_async(
+            args=[document_id],
+            countdown=1
+        )
+
+        logger.info(f"✅ 已触发文档 {document_id} 的重新OCR识别任务")
+
+        return Response({
+            'status': 'success',
+            'message': '重新OCR识别任务已启动，请稍后刷新查看结果',
+            'data': {
+                'document_id': doc.id,
+                'processing_stage': doc.processing_stage,
+                'file_path': doc.file_path.url if doc.file_path else None
+            }
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.error(f"❌ 触发重新OCR识别失败: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return Response({
+            'status': 'error',
+            'message': f'触发重新OCR识别失败: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def reanalyze_tables(request, document_id):
+    """
+    重新分析表格概要
+    基于doc.tablecontent字段，重新触发步骤2：提取表格概要
+
+    路径参数：
+        document_id: 文档ID
+
+    返回：
+        {
+            "status": "success" | "error",
+            "message": "提示信息"
+        }
+    """
+    from .tasks import extract_tablesummary_task
+
+    try:
+        # 获取文档
+        try:
+            doc = PlanDocument.objects.get(id=document_id)
+        except PlanDocument.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'message': f'文档 {document_id} 不存在'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # 检查权限：只有文档所有者可以操作
+        if doc.user and doc.user != request.user:
+            return Response({
+                'status': 'error',
+                'message': '无权操作此文档'
+            }, status=status.HTTP_403_FORBIDDEN)
+
+        # 检查content是否存在（步骤2基于OCR结果分析）
+        if not doc.content:
+            return Response({
+                'status': 'error',
+                'message': 'OCR内容为空，无法重新分析。请先确保文档已完成OCR识别。'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        # 更新状态
+        doc.processing_stage = 'extracting_tablesummary'
+        doc.save(update_fields=['processing_stage'])
+
+        # 直接触发步骤2：提取表格概要
+        extract_tablesummary_task.apply_async(args=[document_id], countdown=1)
+
+        logger.info(f"✅ 已触发文档 {document_id} 的表格重新分析任务")
+
+        return Response({
+            'status': 'success',
+            'message': '表格重新分析任务已启动，请稍后刷新查看结果',
+            'data': {
+                'document_id': doc.id,
+                'processing_stage': doc.processing_stage
+            }
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.error(f"❌ 触发表格重新分析失败: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return Response({
+            'status': 'error',
+            'message': f'触发表格重新分析失败: {str(e)}'
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

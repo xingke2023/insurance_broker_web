@@ -223,11 +223,16 @@ function PlanAnalyzer() {
           };
         });
 
-        setBackgroundTasks(tasks);
-        saveTasksToLocal(tasks);
+        // 按创建时间倒序排序，只保留最新的8条
+        const sortedTasks = tasks
+          .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+          .slice(0, 8);
+
+        setBackgroundTasks(sortedTasks);
+        saveTasksToLocal(sortedTasks);
 
         // 只有未完成任务时才自动打开任务列表
-        const incompleteTasks = tasks.filter(t => t.state !== 'finished');
+        const incompleteTasks = sortedTasks.filter(t => t.state !== 'finished');
         if (incompleteTasks.length > 0) {
           setShowTaskList(true);
         }
@@ -245,10 +250,15 @@ function PlanAnalyzer() {
     const savedTasks = localStorage.getItem('backgroundTasks');
     if (savedTasks) {
       const tasks = JSON.parse(savedTasks);
-      setBackgroundTasks(tasks);
+      // 按创建时间倒序排序，只保留最新的8条
+      const sortedTasks = tasks
+        .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+        .slice(0, 8);
+      setBackgroundTasks(sortedTasks);
+      saveTasksToLocal(sortedTasks); // 更新localStorage
 
       // 恢复未完成的任务
-      tasks.forEach(task => {
+      sortedTasks.forEach(task => {
         if (task.state !== 'finished' && task.state !== 'error') {
           resumeTask(task.task_id);
         }
@@ -500,10 +510,11 @@ function PlanAnalyzer() {
     });
   };
 
-  // 添加后台任务
+  // 添加后台任务（新任务添加到开头，只保留最新的8条）
   const addBackgroundTask = (task) => {
     setBackgroundTasks(prevTasks => {
-      const newTasks = [...prevTasks, task];
+      // 新任务添加到数组开头
+      const newTasks = [task, ...prevTasks].slice(0, 8);
       saveTasksToLocal(newTasks);
       return newTasks;
     });
@@ -1007,7 +1018,10 @@ function PlanAnalyzer() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  {backgroundTasks.map((task) => (
+                  {backgroundTasks
+                    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))
+                    .slice(0, 8)
+                    .map((task) => (
                     <div
                       key={task.task_id}
                       className="bg-gradient-to-r from-slate-50 to-blue-50 rounded-xl p-4 border border-primary-200 hover:shadow-md transition-all"

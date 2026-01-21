@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import InsurancePolicyViewSet
 from .auth_views import register, login, user_profile, wechat_login, generate_miniprogram_scheme, wechat_web_auth, wechat_update_profile, wechat_upload_avatar, get_page_permissions
-from .ocr_views import save_ocr_result, get_saved_documents, get_pending_documents, get_document_detail, analyze_document_table, analyze_basic_info, delete_documents, chat_with_document, extract_summary, get_processing_status, ocr_webhook, create_pending_document, retry_failed_document, upload_pdf_async
+from .ocr_views import save_ocr_result, get_saved_documents, get_pending_documents, get_document_detail, analyze_document_table, analyze_basic_info, delete_documents, chat_with_document, extract_summary, get_processing_status, ocr_webhook, create_pending_document, retry_failed_document, upload_pdf_async, get_table_detail, reextract_tablecontent, reanalyze_tables, re_ocr_document, reextract_table1
 from .payment_views_v3 import create_payment_order_v3, payment_notify_v3, create_jsapi_payment, get_membership_plans
 from .plan_views import get_membership_status
 from .content_editor_views import process_user_request, update_tablesummary, update_surrender_value_table, update_wellness_table, update_plan_summary
@@ -24,6 +24,15 @@ from .axa_benefit_views import analyze_axa_benefit, calculate_withdrawal
 from .insurance_company_views import get_insurance_companies, get_company_requests, get_request_detail, get_company_request_by_name, execute_api_request, get_companies_standard_comparison
 from .stripe_views import create_checkout_session, stripe_webhook, check_membership_status
 from .product_settings_views import get_all_products, manage_user_product_settings
+from .consultation_views import get_ai_consultation, get_customer_cases
+from .ai_consultant_views import ai_consult_view, get_recommended_products, get_consultation_stats
+from .customer_case_views import (
+    get_customer_cases as get_all_customer_cases,
+    get_customer_case_detail,
+    get_cases_by_stage,
+    get_life_stages,
+    get_case_statistics
+)
 # 计划书提取功能已删除
 # from .plan_views import (
 #     upload_plan_document, get_plan_documents, get_plan_document,
@@ -73,11 +82,18 @@ urlpatterns = [
     path('ocr/documents/<int:document_id>/', get_document_detail, name='get-document-detail'),
     path('ocr/documents/<int:document_id>/analyze/', analyze_document_table, name='analyze-document-table'),
     path('ocr/documents/<int:document_id>/basic-info/', analyze_basic_info, name='analyze-basic-info'),
+    # 已删除: extract-basic-info（手动触发已移除）
     path('ocr/documents/<int:document_id>/summary/', extract_summary, name='extract-summary'),
+    # 已删除: extract-summary（手动触发已移除）
     path('ocr/documents/<int:document_id>/status/', get_processing_status, name='get-processing-status'),
     path('ocr/documents/<int:document_id>/chat/', chat_with_document, name='chat-with-document'),
     path('ocr/documents/<int:document_id>/retry/', retry_failed_document, name='retry-failed-document'),  # 手动重试失败任务
+    path('ocr/documents/<int:document_id>/re-ocr/', re_ocr_document, name='re-ocr-document'),  # 重新OCR识别
+    path('ocr/documents/<int:document_id>/reextract-tablecontent/', reextract_tablecontent, name='reextract-tablecontent'),  # 重新提取表格源代码
+    path('ocr/documents/<int:document_id>/reanalyze-tables/', reanalyze_tables, name='reanalyze-tables'),  # 重新分析表格
+    path('ocr/documents/<int:document_id>/reextract-table1/', reextract_table1, name='reextract-table1'),  # 重新提取保单价值表
     path('ocr/documents/delete/', delete_documents, name='delete-documents'),
+    path('ocr/tables/<int:table_id>/', get_table_detail, name='get-table-detail'),  # 获取单个表格详情
 
     # 内容编辑器API
     path('content-editor/<int:document_id>/process/', process_user_request, name='process-user-request'),
@@ -158,6 +174,22 @@ urlpatterns = [
     # 产品对比设置API
     path('company-comparison/products', get_all_products, name='get-all-products'),
     path('user/product-comparison-settings', manage_user_product_settings, name='manage-user-product-settings'),
+
+    # AI智能咨询API（基础版）
+    path('consultation/ai-recommend', get_ai_consultation, name='get-ai-consultation'),
+    path('consultation/customer-cases', get_customer_cases, name='get-customer-cases'),
+
+    # AI智能顾问API（高级版 - 带详细评分）
+    path('ai-consultant/consult', ai_consult_view, name='ai-consult'),
+    path('ai-consultant/products', get_recommended_products, name='get-recommended-products'),
+    path('ai-consultant/stats', get_consultation_stats, name='get-consultation-stats'),
+
+    # 客户案例API
+    path('customer-cases/', get_all_customer_cases, name='get-customer-cases'),
+    path('customer-cases/<int:case_id>/', get_customer_case_detail, name='get-customer-case-detail'),
+    path('customer-cases/by-stage/<str:stage>/', get_cases_by_stage, name='get-cases-by-stage'),
+    path('customer-cases/life-stages/', get_life_stages, name='get-life-stages'),
+    path('customer-cases/statistics/', get_case_statistics, name='get-case-statistics'),
 
     # 计划书提取功能路由已删除
     # path('insurance-companies/', get_insurance_companies, name='insurance-companies'),

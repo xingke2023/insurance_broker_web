@@ -16,6 +16,8 @@ import {
   CreditCardIcon,
   DevicePhoneMobileIcon,
   SparklesIcon,
+  LightBulbIcon,
+  UserGroupIcon,
 } from '@heroicons/react/24/outline';
 
 function Dashboard() {
@@ -243,11 +245,18 @@ function Dashboard() {
   // 工具分类
   const toolCategories = [
     {
+      category: '智能保险咨询',
+      tools: [
+        { name: 'AI保险顾问', icon: SparklesIcon, action: () => onNavigate('ai-consultant'), color: 'from-blue-500 via-cyan-600 to-teal-700', show: true },
+        { name: '客户案例库', icon: FolderIcon, action: () => onNavigate('customer-cases'), color: 'from-teal-500 via-green-600 to-emerald-700', show: true },
+      ]
+    },
+    {
       category: '保单与计划书',
       tools: [
-        { name: '计划书分析工具', icon: FolderIcon, action: () => onNavigate('plan-management'), color: 'from-blue-500 via-blue-600 to-indigo-700', show: true },
+        { name: '计划书分析和比对工具', icon: FolderIcon, action: () => onNavigate('plan-management'), color: 'from-blue-500 via-blue-600 to-indigo-700', show: true },
         { name: '计划书分步骤分析', icon: DocumentTextIcon, action: () => onNavigate('plan-analyzer-2'), color: 'from-indigo-500 via-purple-600 to-purple-700', show: canAccessPlanAnalyzer() },
-        { name: '计划书制作工具', icon: DocumentTextIcon, action: () => onNavigate('plan-builder'), color: 'from-purple-500 via-purple-600 to-pink-700', show: true, disabled: true },
+        { name: '计划书制作工具', icon: DocumentTextIcon, action: () => onNavigate('plan-builder'), color: 'from-purple-500 via-purple-600 to-pink-700', show: true },
         { name: '港险产品比对工具', icon: ChartBarIcon, action: () => onNavigate('company-comparison'), color: 'from-purple-500 via-purple-600 to-pink-700', show: true },
       ]
     },

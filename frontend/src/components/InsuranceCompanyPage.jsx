@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { ArrowLeftIcon } from '@heroicons/react/24/outline';
+import CompanyIconDisplay from './CompanyIconDisplay';
 
 function InsuranceCompanyPage() {
   const { companyCode } = useParams();
@@ -89,7 +90,7 @@ function InsuranceCompanyPage() {
               <span>返回</span>
             </button>
             <h1 className="text-xl font-bold text-gray-900">
-              {company?.name} API 调用
+              {company?.name}保险产品
             </h1>
             <div className="w-20"></div>
           </div>
@@ -98,22 +99,42 @@ function InsuranceCompanyPage() {
 
       {/* 主内容区 */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 公司信息卡片 */}
-        <div className="bg-white rounded-2xl shadow-lg p-8 mb-8">
-          <div className="flex items-center space-x-4">
-            <div className="text-6xl">{getCompanyIcon(companyCode)}</div>
-            <div>
-              <h2 className="text-3xl font-bold text-gray-900">{company?.name}</h2>
-              <p className="text-lg text-gray-600">{company?.name_en}</p>
-            </div>
+        {/* 宏利特殊产品按钮 */}
+        {companyCode === 'manulife' && (
+          <div className="mb-6">
+            <a
+              href="https://api1.hongkong-insurance.com/product/6/payload-form1"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="block bg-gradient-to-r from-green-500 to-emerald-600 rounded-xl shadow-lg hover:shadow-2xl transition-all duration-300 transform hover:-translate-y-1 p-6 text-white group"
+            >
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-3xl font-bold mb-2">
+                    🌲 宏利宏挚传承保障计划
+                  </h3>
+                  <p className="text-green-50 text-base">
+                    点击跳转到产品表单页面
+                  </p>
+                </div>
+                <svg
+                  className="h-8 w-8 text-white group-hover:translate-x-1 transition-transform"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+              </div>
+            </a>
           </div>
-        </div>
+        )}
 
         {/* API请求列表 */}
         {requests.length === 0 ? (
           <div className="bg-white rounded-2xl shadow-lg p-12 text-center">
-            <p className="text-gray-500 text-lg">该保险公司暂无可用的API接口</p>
-            <p className="text-gray-400 text-sm mt-2">请联系管理员添加接口配置</p>
+            <p className="text-gray-500 text-lg">该保险公司暂无可用的产品工具</p>
+            <p className="text-gray-400 text-sm mt-2">请联系管理员添加产品配置</p>
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -181,24 +202,6 @@ function InsuranceCompanyPage() {
       </div>
     </div>
   );
-}
-
-// 获取公司图标
-function getCompanyIcon(code) {
-  const icons = {
-    'prudential': '🏛️',
-    'manulife': '🌲',
-    'sunlife': '☀️',
-    'axa': '🏢',
-    'boc': '🏦',
-    'chinalife': '🐉',
-    'ctf': '💎',
-    'ftlife': '🔷',
-    'fwd': '🛡️',
-    'transamerica': '🌉',
-    'aia': '🤝'
-  };
-  return icons[code] || '🏢';
 }
 
 export default InsuranceCompanyPage;

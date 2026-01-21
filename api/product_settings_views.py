@@ -1,12 +1,14 @@
-from rest_framework.decorators import api_view, permission_classes
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
+from rest_framework.authentication import SessionAuthentication
 from django.contrib.auth.models import User
 from .models import InsuranceProduct, UserProductSettings
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@authentication_classes([])  # 禁用认证
+@permission_classes([AllowAny])  # 改为允许所有人访问
 def get_all_products(request):
     """
     获取所有保险产品列表，按年期分组
@@ -52,18 +54,33 @@ def get_all_products(request):
 
 
 @api_view(['GET', 'POST'])
-@permission_classes([IsAuthenticated])
+@authentication_classes([])  # 禁用自动认证，手动处理
+@permission_classes([AllowAny])  # 改为允许所有人访问
 def manage_user_product_settings(request):
     """
     管理用户的产品对比设置
-    GET: 获取用户设置
-    POST: 保存用户设置
+    GET: 获取用户设置（未登录用户返回空列表）
+    POST: 保存用户设置（需要登录）
     """
     try:
+        # 对于 POST 请求，检查是否已登录
+        if request.method == 'POST' and not request.user.is_authenticated:
+            return Response({
+                'status': 'error',
+                'message': '保存设置需要登录'
+            }, status=401)
+
         user = request.user
 
         if request.method == 'GET':
             # 获取用户设置
+            # 如果用户未登录，返回空列表
+            if not user.is_authenticated:
+                return Response({
+                    'status': 'success',
+                    'selected_products': []
+                })
+
             try:
                 settings = UserProductSettings.objects.get(user=user)
                 selected_products = settings.selected_product_ids or []

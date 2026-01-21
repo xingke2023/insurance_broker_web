@@ -324,11 +324,33 @@ function CompanyComparison() {
   // 处理产品多选（复选框）
   const handleProductToggle = (productId) => {
     setTempSelectedProducts(prev => {
-      if (prev.includes(productId)) {
-        return prev.filter(id => id !== productId);
-      } else {
-        return [...prev, productId];
+      const newSelection = prev.includes(productId)
+        ? prev.filter(id => id !== productId)
+        : [...prev, productId];
+
+      // 检查是否选中了所有产品
+      const company = currentCompanyForSelection;
+      const allProductIds = company.products.map(p => p.product_id);
+
+      if (newSelection.length === allProductIds.length && allProductIds.every(id => newSelection.includes(id))) {
+        // 选中了所有产品，自动确认
+        setTimeout(() => {
+          setSelectedProductsByCompany(prevState => ({
+            ...prevState,
+            [company.id]: newSelection
+          }));
+
+          if (!selectedIds.includes(company.id)) {
+            setSelectedIds(prevIds => [...prevIds, company.id]);
+          }
+
+          setShowProductSelector(false);
+          setCurrentCompanyForSelection(null);
+          setTempSelectedProducts([]);
+        }, 100);
       }
+
+      return newSelection;
     });
   };
 
@@ -996,7 +1018,8 @@ function CompanyComparison() {
                           const holdingYears = year;
                           const actualPremiumsPaid = data?.premiums_paid !== undefined ? data.premiums_paid : annualPremium * holdingYears;
 
-                          const simpleReturn = totalValue && actualPremiumsPaid && holdingYears > 0
+                          // 只在缴费期结束后的下一年开始计算和显示单利
+                          const simpleReturn = holdingYears > paymentYears && totalValue && actualPremiumsPaid && holdingYears > 0
                             ? ((totalValue - actualPremiumsPaid) / actualPremiumsPaid / holdingYears) * 100
                             : null;
 
@@ -1015,7 +1038,8 @@ function CompanyComparison() {
                           }
 
                           let irr = null;
-                          if (totalValue > 0 && actualPremiumsPaid > 0 && holdingYears > 0) {
+                          // 只在缴费期结束后的下一年开始计算和显示IRR
+                          if (holdingYears > paymentYears && totalValue > 0 && actualPremiumsPaid > 0 && holdingYears > 0) {
                             const yearlyPremiums = [];
                             for (let y = 1; y <= holdingYears; y++) {
                               const allYearDataItem = company.allYearData?.[y];
@@ -1068,12 +1092,12 @@ function CompanyComparison() {
                               )}
                               {visibleColumns.simpleReturn && (
                                 <td className={`${isCompactMode ? 'px-0.5 py-1' : 'px-2 py-2.5'} ${isCompactMode ? 'text-xs' : 'text-base'} font-bold text-center whitespace-nowrap ${currentTheme === 'luxury' ? 'text-purple-300' : 'text-purple-600'} ${bestCellClass} ${lastVisibleColumn === 'simpleReturn' ? `border-r-2 ${currentThemeConfig.borderColor}` : ''}`}>
-                                  {simpleReturn !== null && simpleReturn >= -30 ? `${simpleReturn.toFixed(isCompactMode ? 1 : 2)}%` : '-'}
+                                  {simpleReturn !== null ? `${simpleReturn.toFixed(isCompactMode ? 1 : 2)}%` : '-'}
                                 </td>
                               )}
                               {visibleColumns.irr && (
                                 <td className={`${isCompactMode ? 'px-0.5 py-1' : 'px-2 py-2.5'} ${isCompactMode ? 'text-xs' : 'text-base'} font-bold text-center whitespace-nowrap ${currentTheme === 'luxury' ? 'text-green-400 bg-green-900/10' : 'text-green-600 bg-green-50/30'} ${bestCellClass} ${lastVisibleColumn === 'irr' ? `border-r-2 ${currentThemeConfig.borderColor}` : ''}`}>
-                                  {irr !== null && irr >= -30 ? `${irr.toFixed(2)}%` : '-'}
+                                  {irr !== null ? `${irr.toFixed(2)}%` : '-'}
                                 </td>
                               )}
                             </React.Fragment>
@@ -1559,7 +1583,7 @@ function CompanyComparison() {
             {/* 标题栏 */}
             <div className="bg-gradient-to-r from-blue-600 via-indigo-600 to-purple-600 px-3 py-2 sm:px-6 sm:py-4 flex-shrink-0">
               <h3 className="text-sm sm:text-2xl font-bold text-white text-center leading-tight">{currentCompanyForSelection.name} - 选择产品</h3>
-              <p className="text-white/80 text-[11px] sm:text-sm text-center mt-0.5 sm:mt-1">该公司有 {currentCompanyForSelection.products.length} 个{paymentYears}年期产品，可多选</p>
+              <p className="text-white/80 text-[11px] sm:text-sm text-center mt-0.5 sm:mt-1">该公司有 {currentCompanyForSelection.products.length} 个{paymentYears}年期产品，可多选（选完全部产品将自动确认）</p>
             </div>
 
             {/* 产品列表（多选模式） */}

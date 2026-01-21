@@ -20,10 +20,10 @@
 - AI服务：`api/qwen_service.py`
 
 ### 3. 年度价值表分析
-- 使用DeepSeek AI分析保单年度价值表
+- 使用Gemini Flash AI分析保单年度价值表
 - 提取每年的保证现金价值、非保证现金价值
 - 存储多年度数据用于对比分析
-- 实现位置：`api/deepseek_service.py`
+- 实现位置：`api/gemini_analysis_service.py`
 
 ### 4. 用户认证系统
 - JWT token认证
@@ -147,8 +147,11 @@ response = client.models.generate_content(
 - **图标**: Heroicons, Lucide React
 
 ### AI服务集成
-- **Google Gemini 3 Flash Preview**: PDF文档OCR识别（替代PaddleLayout）
-- **DeepSeek API**: 年度价值表格分析
+- **Google Gemini 3 Flash Preview**:
+  - PDF文档OCR识别（替代PaddleLayout）
+  - 保险数据提取和分析（替代DeepSeek）
+  - 年度价值表格解析
+  - 计划书概要生成
 - **Google Gemini 3 Pro Preview**: 海报视觉分析和营销评估
 
 ## 项目结构
@@ -577,6 +580,7 @@ POST /api/ocr/upload-async/（保存PDF文件）
     → 保存到 tablecontent 字段
     ↓
 [步骤2] 提取表格概要并保存到数据库 (extract_tablesummary_task)
+    → 调用 Gemini Flash API 生成表格概要文本
     → 从tablecontent提取所有包含"保单年度终结"的<table>标签
     → 使用check_first_year_in_table判断是否从年度1开始
     → 基于数字特征检测（跳过多行表头）
@@ -584,6 +588,19 @@ POST /api/ocr/upload-async/（保存PDF文件）
     → 自动分组合并跨页表格（group_tables_by_title）
     → 每个逻辑表格创建一条PlanTable记录
     → 保存表格HTML源代码和元数据
+    ↓
+[步骤3] 提取基本信息 (extract_basic_info_task)
+    → 调用 Gemini Flash API 提取受保人、产品、保费等信息
+    → 保存到 extracted_data 字段
+    ↓
+[步骤4] 提取年度价值表数据 (extract_table_data_task)
+    → 调用 Gemini Flash API 解析表格HTML
+    → 提取每年的保证/非保证现金价值
+    → 保存到 AnnualValue 数据库
+    ↓
+[步骤5] 生成计划书概要 (extract_summary_task)
+    → 调用 Gemini Flash API 生成Markdown格式概要
+    → 保存到 summary 字段
     ↓
 处理完成（processing_stage: all_completed, status: completed）
 ```

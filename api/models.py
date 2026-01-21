@@ -125,6 +125,12 @@ class PlanDocument(models.Model):
         max_length=50,
         choices=[
             ('pending', '待处理'),
+            ('extracting_tablecontent', '提取表格源代码中'),
+            ('tablecontent_completed', '表格源代码完成'),
+            ('extracting_tablesummary', '分析表格结构中'),
+            ('tablesummary_completed', '表格结构分析完成'),
+            ('extracting_table_html', '提取表格HTML中'),
+            ('extracting_table1', '提取退保价值表中'),
             ('extracting_basic_info', '提取基本信息中'),
             ('basic_info_completed', '基本信息完成'),
             ('extracting_table', '提取年度价值表中'),
@@ -149,6 +155,34 @@ class PlanDocument(models.Model):
 
     def __str__(self):
         return f"{self.file_name} - {self.insured_name}"
+
+
+class PlanTable(models.Model):
+    """计划书表格 - 存储每个计划书的各个表格"""
+    plan_document = models.ForeignKey(
+        PlanDocument,
+        on_delete=models.CASCADE,
+        related_name='plan_tables',
+        verbose_name='计划书'
+    )
+    table_number = models.IntegerField(verbose_name='表格编号')
+    table_name = models.CharField(max_length=500, verbose_name='表格名称')
+    row_count = models.IntegerField(verbose_name='行数', default=0)
+    fields = models.TextField(verbose_name='基本字段', blank=True, default='')
+    html_source = models.TextField(verbose_name='HTML源代码', blank=True, default='')
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'plan_tables'
+        verbose_name = '计划书表格'
+        verbose_name_plural = '计划书表格'
+        ordering = ['plan_document', 'table_number']
+        unique_together = ['plan_document', 'table_number']  # 确保同一计划书的表格编号不重复
+
+    def __str__(self):
+        return f"{self.plan_document.file_name} - 表格{self.table_number}: {self.table_name}"
 
 
 class AnnualValue(models.Model):
@@ -815,6 +849,52 @@ class InsuranceProduct(models.Model):
         verbose_name='产品描述',
         blank=True
     )
+
+    # AI推荐相关字段
+    target_age_min = models.IntegerField(
+        verbose_name='目标年龄段最小值',
+        null=True,
+        blank=True,
+        help_text='适合的最小年龄，例如：25'
+    )
+    target_age_max = models.IntegerField(
+        verbose_name='目标年龄段最大值',
+        null=True,
+        blank=True,
+        help_text='适合的最大年龄，例如：50'
+    )
+    target_life_stage = models.CharField(
+        max_length=50,
+        verbose_name='目标人生阶段',
+        blank=True,
+        help_text='例如：扶幼保障期/收入成长期/责任高峰期/责任递减期/退休期，多个用逗号分隔'
+    )
+    coverage_type = models.CharField(
+        max_length=100,
+        verbose_name='保障类型',
+        blank=True,
+        help_text='例如：储蓄/重疾/医疗/教育基金/退休规划，多个用逗号分隔'
+    )
+    min_annual_income = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        verbose_name='最低年收入要求',
+        null=True,
+        blank=True,
+        help_text='建议的最低年收入（台币），例如：500000'
+    )
+    features = models.JSONField(
+        verbose_name='产品特点列表',
+        default=list,
+        blank=True,
+        help_text='产品特点数组，例如：["高额身故保障", "现金价值稳定增长", "可附加重疾保障"]'
+    )
+    ai_recommendation_prompt = models.TextField(
+        verbose_name='AI推荐提示词',
+        blank=True,
+        help_text='AI推荐产品时使用的描述，帮助AI更好地理解产品特性'
+    )
+
     is_active = models.BooleanField(
         default=True,
         verbose_name='是否启用'
@@ -1067,3 +1147,119 @@ class UserProductSettings(models.Model):
 
     def __str__(self):
         return f'{self.user.username} 的产品对比设置'
+
+
+class CustomerCase(models.Model):
+    """
+    客户保险配置案例模型
+    用于展示不同人生阶段的典型保险配置方案
+    """
+    title = models.CharField(
+        max_length=200,
+        verbose_name='案例标题',
+        help_text='例如：35岁IT工程师的家庭保障方案'
+    )
+    life_stage = models.CharField(
+        max_length=50,
+        verbose_name='人生阶段',
+        choices=[
+            ('扶幼保障期', '扶幼保障期（25-30岁）'),
+            ('收入成长期', '收入成长期（31-40岁）'),
+            ('责任高峰期', '责任高峰期（41-50岁）'),
+            ('责任递减期', '责任递减期（51-60岁）'),
+            ('退休期', '退休期（60岁以上）'),
+        ],
+        help_text='客户所处的人生阶段'
+    )
+    customer_age = models.IntegerField(
+        verbose_name='客户年龄',
+        help_text='案例中客户的年龄'
+    )
+    annual_income = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        verbose_name='年收入',
+        help_text='年收入（台币）'
+    )
+    family_structure = models.CharField(
+        max_length=200,
+        verbose_name='家庭结构',
+        help_text='例如：已婚，2个子女（5岁、8岁）'
+    )
+    insurance_needs = models.TextField(
+        verbose_name='保险需求',
+        help_text='客户的主要保险需求和关注点'
+    )
+    recommended_products = models.JSONField(
+        verbose_name='推荐产品列表',
+        default=list,
+        help_text='JSON格式：[{"product_name": "产品名", "company": "公司", "annual_premium": 50000, "coverage_type": "重疾", "reason": "推荐理由"}]'
+    )
+    total_annual_premium = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        verbose_name='年缴保费总额',
+        help_text='所有推荐产品的年缴保费总和（台币）'
+    )
+    case_image = models.ImageField(
+        upload_to='customer_cases/',
+        verbose_name='案例配图',
+        blank=True,
+        null=True,
+        help_text='案例展示图片'
+    )
+    case_description = models.TextField(
+        verbose_name='案例详细说明',
+        help_text='详细描述案例的保障方案和配置理念'
+    )
+    key_points = models.JSONField(
+        verbose_name='关键要点',
+        default=list,
+        blank=True,
+        help_text='配置方案的关键要点列表，例如：["要点1", "要点2"]'
+    )
+    budget_suggestion = models.CharField(
+        max_length=200,
+        verbose_name='预算建议',
+        blank=True,
+        help_text='例如：年缴保费: 80,000-120,000 台币'
+    )
+    sort_order = models.IntegerField(
+        default=0,
+        verbose_name='排序',
+        help_text='数字越小越靠前'
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='是否启用',
+        help_text='是否在前端展示此案例'
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='创建时间'
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name='更新时间'
+    )
+
+    class Meta:
+        db_table = 'customer_cases'
+        verbose_name = '客户案例'
+        verbose_name_plural = '客户案例'
+        ordering = ['sort_order', '-created_at']
+        indexes = [
+            models.Index(fields=['life_stage', 'is_active']),
+            models.Index(fields=['sort_order']),
+        ]
+
+    def __str__(self):
+        return f"{self.title} - {self.life_stage}"
+
+    def get_total_premium_display(self):
+        """格式化显示总保费"""
+        return f"{self.total_annual_premium:,.0f} 台币"
+
+    def get_income_display(self):
+        """格式化显示年收入"""
+        return f"{self.annual_income:,.0f} 台币"

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, User, Building2, Calendar, DollarSign, FileText, Loader2, AlertCircle, MessageSquare, Send, X, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, User, Building2, Calendar, DollarSign, FileText, Loader2, AlertCircle, MessageSquare, Send, X, ChevronDown, ChevronUp, Table, Eye } from 'lucide-react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authFetch } from '../utils/authFetch';
@@ -15,11 +15,266 @@ function DocumentDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Collapse states
-  const [isBasicInfoOpen, setIsBasicInfoOpen] = useState(true);
-  const [isSummaryOpen, setIsSummaryOpen] = useState(true);
-  const [isTableOpen, setIsTableOpen] = useState(true);
+  // Collapse states - 默认全部折叠
+  const [isBasicInfoOpen, setIsBasicInfoOpen] = useState(false);
+  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  const [isTableSummaryOpen, setIsTableSummaryOpen] = useState(false); // 表格分析基本情况折叠状态
+  const [isTable1Open, setIsTable1Open] = useState(false); // 新增：保单价值表折叠状态
+  const [isTableOpen, setIsTableOpen] = useState(false);
+  const [isPlanTablesOpen, setIsPlanTablesOpen] = useState(false); // 表格列表折叠状态
   const [isContentOpen, setIsContentOpen] = useState(false); // 默认折叠内容区域
+  const [isTableContentOpen, setIsTableContentOpen] = useState(false); // 表格内容折叠状态
+
+  // Reanalyze table content states
+  const [reanalyzingTableContent, setReanalyzingTableContent] = useState(false);
+  const [tableContentReanalyzeError, setTableContentReanalyzeError] = useState(null);
+
+  // Reanalyze table summary states
+  const [reanalyzingTableSummary, setReanalyzingTableSummary] = useState(false);
+  const [tableSummaryReanalyzeError, setTableSummaryReanalyzeError] = useState(null);
+
+  // Reextract tablecontent function
+  const handleReextractTableContent = async () => {
+    if (reanalyzingTableContent) return;
+
+    setReanalyzingTableContent(true);
+    setTableContentReanalyzeError(null);
+
+    try {
+      console.log('🔄 正在触发重新提取表格源代码，文档ID:', id);
+      const response = await authFetch(`/api/ocr/documents/${id}/reextract-tablecontent/`, {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+      console.log('📦 API返回:', data);
+
+      if (data.status === 'success') {
+        console.log('✅ 表格源代码重新提取任务已启动');
+        // 启动轮询检查状态
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusResponse = await authFetch(`/api/ocr/documents/${id}/status/`);
+            const statusData = await statusResponse.json();
+
+            if (statusData.status === 'success') {
+              const stage = statusData.data.processing_stage;
+
+              // 如果完成，刷新文档详情
+              if (stage === 'all_completed' || stage === 'tablecontent_completed') {
+                clearInterval(pollInterval);
+                await fetchDocumentDetail();
+                setReanalyzingTableContent(false);
+                console.log('✅ 表格源代码重新提取完成！');
+              }
+            }
+          } catch (err) {
+            console.error('轮询状态出错:', err);
+          }
+        }, 3000); // 每3秒轮询一次
+
+        // 60秒后停止轮询
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          if (reanalyzingTableContent) {
+            setReanalyzingTableContent(false);
+            setTableContentReanalyzeError('表格源代码重新提取超时，请刷新页面查看');
+          }
+        }, 60000);
+      } else {
+        setReanalyzingTableContent(false);
+        setTableContentReanalyzeError(data.message || '触发表格源代码重新提取失败');
+      }
+    } catch (error) {
+      console.error('❌ 触发表格源代码重新提取失败:', error);
+      setReanalyzingTableContent(false);
+      setTableContentReanalyzeError('网络错误，请稍后重试');
+    }
+  };
+
+  // Reextract table1 function
+  const handleReextractTable1 = async () => {
+    if (reextractingTable1) return;
+
+    setReextractingTable1(true);
+    setTable1ReextractError(null);
+
+    try {
+      console.log('🔄 正在触发重新提取保单价值表，文档ID:', id);
+      const response = await authFetch(`/api/ocr/documents/${id}/reextract-table1/`, {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+      console.log('📦 API返回:', data);
+
+      if (data.status === 'success') {
+        console.log('✅ 保单价值表重新提取任务已启动');
+        // 启动轮询检查状态
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusResponse = await authFetch(`/api/ocr/documents/${id}/status/`);
+            const statusData = await statusResponse.json();
+
+            if (statusData.status === 'success') {
+              const stage = statusData.data.processing_stage;
+
+              // 如果完成，刷新文档详情
+              if (stage === 'all_completed') {
+                clearInterval(pollInterval);
+                await fetchDocumentDetail();
+                setReextractingTable1(false);
+                console.log('✅ 保单价值表重新提取完成！');
+              }
+            }
+          } catch (err) {
+            console.error('轮询状态出错:', err);
+          }
+        }, 3000); // 每3秒轮询一次
+
+        // 60秒后停止轮询
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          if (reextractingTable1) {
+            setReextractingTable1(false);
+            setTable1ReextractError('保单价值表重新提取超时，请刷新页面查看');
+          }
+        }, 60000);
+      } else {
+        setReextractingTable1(false);
+        setTable1ReextractError(data.message || '触发保单价值表重新提取失败');
+      }
+    } catch (error) {
+      console.error('❌ 触发保单价值表重新提取失败:', error);
+      setReextractingTable1(false);
+      setTable1ReextractError('网络错误，请稍后重试');
+    }
+  };
+
+  // Reanalyze table summary function
+  const handleReanalyzeTableSummary = async () => {
+    if (reanalyzingTableSummary) return;
+
+    setReanalyzingTableSummary(true);
+    setTableSummaryReanalyzeError(null);
+
+    try {
+      console.log('🔄 正在触发重新分析表格，文档ID:', id);
+      const response = await authFetch(`/api/ocr/documents/${id}/reanalyze-tables/`, {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+      console.log('📦 API返回:', data);
+
+      if (data.status === 'success') {
+        console.log('✅ 表格重新分析任务已启动');
+        // 启动轮询检查状态
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusResponse = await authFetch(`/api/ocr/documents/${id}/status/`);
+            const statusData = await statusResponse.json();
+
+            if (statusData.status === 'success') {
+              const stage = statusData.data.processing_stage;
+
+              // 如果完成，刷新文档详情
+              if (stage === 'all_completed' || stage === 'tablesummary_completed') {
+                clearInterval(pollInterval);
+                await fetchDocumentDetail();
+                setReanalyzingTableSummary(false);
+                console.log('✅ 表格重新分析完成！');
+              }
+            }
+          } catch (err) {
+            console.error('轮询状态出错:', err);
+          }
+        }, 3000); // 每3秒轮询一次
+
+        // 60秒后停止轮询
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          if (reanalyzingTableSummary) {
+            setReanalyzingTableSummary(false);
+            setTableSummaryReanalyzeError('表格重新分析超时，请刷新页面查看');
+          }
+        }, 60000);
+      } else {
+        setReanalyzingTableSummary(false);
+        setTableSummaryReanalyzeError(data.message || '触发表格重新分析失败');
+      }
+    } catch (error) {
+      console.error('❌ 触发表格重新分析失败:', error);
+      setReanalyzingTableSummary(false);
+      setTableSummaryReanalyzeError('网络错误，请稍后重试');
+    }
+  };
+
+  // Re-OCR function
+  const handleReOCR = async () => {
+    if (reOCRing) return;
+
+    setReOCRing(true);
+    setReOCRError(null);
+
+    try {
+      console.log('🔄 正在触发重新OCR识别，文档ID:', id);
+      const response = await authFetch(`/api/ocr/documents/${id}/re-ocr/`, {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+      console.log('📦 API返回:', data);
+
+      if (data.status === 'success') {
+        console.log('✅ 重新OCR识别任务已启动');
+
+        // 立即刷新一次，获取最新状态
+        await fetchDocumentDetail();
+
+        // 启动轮询检查状态
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusResponse = await authFetch(`/api/ocr/documents/${id}/status/`);
+            const statusData = await statusResponse.json();
+
+            if (statusData.status === 'success') {
+              const stage = statusData.data.processing_stage;
+              console.log('📊 当前处理阶段:', stage);
+
+              // 如果OCR完成（包括所有后续阶段），刷新并停止
+              if (stage === 'all_completed' ||
+                  stage === 'ocr_completed' ||
+                  stage.includes('completed')) {
+                clearInterval(pollInterval);
+                await fetchDocumentDetail();
+                setReOCRing(false);
+                console.log('✅ 重新OCR识别完成！');
+              }
+            }
+          } catch (err) {
+            console.error('轮询状态出错:', err);
+          }
+        }, 3000); // 每3秒轮询一次
+
+        // 120秒后停止轮询
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          if (reOCRing) {
+            setReOCRing(false);
+            console.log('⏱️ 轮询超时，但任务可能仍在后台执行');
+          }
+        }, 120000);
+      } else {
+        setReOCRing(false);
+        setReOCRError(data.message || '触发重新OCR识别失败');
+      }
+    } catch (error) {
+      console.error('❌ 触发重新OCR识别失败:', error);
+      setReOCRing(false);
+      setReOCRError('网络错误，请稍后重试');
+    }
+  };
 
   // Chat states
   const [showChatModal, setShowChatModal] = useState(false);
@@ -27,6 +282,26 @@ function DocumentDetail() {
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
   const chatMessagesEndRef = useRef(null);
+
+  // Extract summary states
+  const [extractingSummary, setExtractingSummary] = useState(false);
+  const [summaryError, setSummaryError] = useState(null);
+
+  // Extract basic info states
+  const [extractingBasicInfo, setExtractingBasicInfo] = useState(false);
+  const [basicInfoError, setBasicInfoError] = useState(null);
+
+  // Reanalyze tables states
+  const [reanalyzingTables, setReanalyzingTables] = useState(false);
+  const [reanalyzeError, setReanalyzeError] = useState(null);
+
+  // Re-OCR states
+  const [reOCRing, setReOCRing] = useState(false);
+  const [reOCRError, setReOCRError] = useState(null);
+
+  // Reextract table1 states
+  const [reextractingTable1, setReextractingTable1] = useState(false);
+  const [table1ReextractError, setTable1ReextractError] = useState(null);
 
   useEffect(() => {
     fetchDocumentDetail();
@@ -79,6 +354,183 @@ function DocumentDetail() {
   const formatCurrency = (num) => {
     if (!num) return '-';
     return `¥${formatNumber(num)}`;
+  };
+
+  // Extract basic info function
+  const handleExtractBasicInfo = async () => {
+    if (extractingBasicInfo) return;
+
+    setExtractingBasicInfo(true);
+    setBasicInfoError(null);
+
+    try {
+      console.log('💼 正在触发提取基本信息，文档ID:', id);
+      const response = await authFetch(`/api/ocr/documents/${id}/extract-basic-info/`, {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+      console.log('📦 API返回:', data);
+
+      if (data.status === 'success') {
+        console.log('✅ 基本信息提取任务已启动');
+        // 启动轮询检查状态
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusResponse = await authFetch(`/api/ocr/documents/${id}/status/`);
+            const statusData = await statusResponse.json();
+
+            if (statusData.status === 'success') {
+              const stage = statusData.data.processing_stage;
+
+              // 如果完成，刷新文档详情
+              if (stage === 'basic_info_completed' || stage === 'all_completed') {
+                clearInterval(pollInterval);
+                await fetchDocumentDetail();
+                setExtractingBasicInfo(false);
+                console.log('✅ 基本信息提取完成！');
+              }
+            }
+          } catch (err) {
+            console.error('轮询状态出错:', err);
+          }
+        }, 3000); // 每3秒轮询一次
+
+        // 30秒后停止轮询
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          if (extractingBasicInfo) {
+            setExtractingBasicInfo(false);
+            setBasicInfoError('基本信息提取超时，请刷新页面查看');
+          }
+        }, 30000);
+      } else {
+        setExtractingBasicInfo(false);
+        setBasicInfoError(data.message || '触发基本信息提取失败');
+      }
+    } catch (error) {
+      console.error('❌ 触发基本信息提取失败:', error);
+      setExtractingBasicInfo(false);
+      setBasicInfoError('网络错误，请稍后重试');
+    }
+  };
+
+  // Reanalyze tables function
+  const handleReanalyzeTables = async () => {
+    if (reanalyzingTables) return;
+
+    setReanalyzingTables(true);
+    setReanalyzeError(null);
+
+    try {
+      console.log('🔄 正在触发重新分析表格，文档ID:', id);
+      const response = await authFetch(`/api/ocr/documents/${id}/reanalyze-tables/`, {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+      console.log('📦 API返回:', data);
+
+      if (data.status === 'success') {
+        console.log('✅ 表格重新分析任务已启动');
+        // 启动轮询检查状态
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusResponse = await authFetch(`/api/ocr/documents/${id}/status/`);
+            const statusData = await statusResponse.json();
+
+            if (statusData.status === 'success') {
+              const stage = statusData.data.processing_stage;
+
+              // 如果完成，刷新文档详情
+              if (stage === 'all_completed') {
+                clearInterval(pollInterval);
+                await fetchDocumentDetail();
+                setReanalyzingTables(false);
+                console.log('✅ 表格重新分析完成！');
+              }
+            }
+          } catch (err) {
+            console.error('轮询状态出错:', err);
+          }
+        }, 3000); // 每3秒轮询一次
+
+        // 60秒后停止轮询
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          if (reanalyzingTables) {
+            setReanalyzingTables(false);
+            setReanalyzeError('表格重新分析超时，请刷新页面查看');
+          }
+        }, 60000);
+      } else {
+        setReanalyzingTables(false);
+        setReanalyzeError(data.message || '触发表格重新分析失败');
+      }
+    } catch (error) {
+      console.error('❌ 触发表格重新分析失败:', error);
+      setReanalyzingTables(false);
+      setReanalyzeError('网络错误，请稍后重试');
+    }
+  };
+
+  // Extract summary function
+  const handleExtractSummary = async () => {
+    if (extractingSummary) return;
+
+    setExtractingSummary(true);
+    setSummaryError(null);
+
+    try {
+      console.log('📝 正在触发提取概要，文档ID:', id);
+      const response = await authFetch(`/api/ocr/documents/${id}/extract-summary/`, {
+        method: 'POST'
+      });
+
+      const data = await response.json();
+      console.log('📦 API返回:', data);
+
+      if (data.status === 'success') {
+        console.log('✅ 概要提取任务已启动');
+        // 启动轮询检查状态
+        const pollInterval = setInterval(async () => {
+          try {
+            const statusResponse = await authFetch(`/api/ocr/documents/${id}/status/`);
+            const statusData = await statusResponse.json();
+
+            if (statusData.status === 'success') {
+              const stage = statusData.data.processing_stage;
+
+              // 如果完成，刷新文档详情
+              if (stage === 'all_completed') {
+                clearInterval(pollInterval);
+                await fetchDocumentDetail();
+                setExtractingSummary(false);
+                console.log('✅ 概要提取完成！');
+              }
+            }
+          } catch (err) {
+            console.error('轮询状态出错:', err);
+          }
+        }, 3000); // 每3秒轮询一次
+
+        // 30秒后停止轮询
+        setTimeout(() => {
+          clearInterval(pollInterval);
+          if (extractingSummary) {
+            setExtractingSummary(false);
+            setSummaryError('概要提取超时，请刷新页面查看');
+          }
+        }, 30000);
+      } else {
+        setExtractingSummary(false);
+        setSummaryError(data.message || '触发概要提取失败');
+      }
+    } catch (error) {
+      console.error('❌ 触发概要提取失败:', error);
+      setExtractingSummary(false);
+      setSummaryError('网络错误，请稍后重试');
+    }
   };
 
   // Chat functions
@@ -349,11 +801,16 @@ function DocumentDetail() {
                   <span className="font-medium">当前阶段:</span>
                   <span className="px-2 py-0.5 bg-amber-100 rounded">
                     {document.processing_stage === 'ocr_pending' && 'OCR识别待处理'}
+                    {document.processing_stage === 'ocr_processing' && '正在OCR识别文档...'}
+                    {document.processing_stage === 'ocr_completed' && '✅ OCR识别已完成'}
                     {document.processing_stage === 'pending' && '等待分析'}
+                    {document.processing_stage === 'extracting_tablecontent' && '正在提取表格源代码...'}
+                    {document.processing_stage === 'tablecontent_completed' && '表格源代码已完成'}
+                    {document.processing_stage === 'extracting_tablesummary' && '正在分析表格结构...'}
+                    {document.processing_stage === 'tablesummary_completed' && '表格结构已完成'}
+                    {document.processing_stage === 'extracting_table_html' && '正在提取表格HTML...'}
                     {document.processing_stage === 'extracting_basic_info' && '正在提取基本信息'}
                     {document.processing_stage === 'basic_info_completed' && '基本信息已完成'}
-                    {document.processing_stage === 'extracting_tablesummary' && '正在分析表格结构'}
-                    {document.processing_stage === 'tablesummary_completed' && '表格结构已完成'}
                     {document.processing_stage === 'extracting_table' && '正在提取退保价值表'}
                     {document.processing_stage === 'table_completed' && '退保价值表已完成'}
                     {document.processing_stage === 'extracting_wellness_table' && '正在提取无忧选表'}
@@ -393,14 +850,37 @@ function DocumentDetail() {
           {/* 紧凑的横向布局 */}
           {isBasicInfoOpen && (
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs sm:text-sm mt-2">
-            {/* 如果没有任何基本信息，显示处理中提示 */}
+            {/* 如果没有任何基本信息，显示处理中提示或提取按钮 */}
             {!document.insured_name && !document.insured_age && !document.insured_gender &&
              !document.insurance_company && !document.insurance_product &&
              !document.sum_assured && !document.annual_premium && (
-              <div className="w-full text-center py-4 text-gray-500">
-                <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-                <p className="text-xs">基本信息提取中...</p>
-              </div>
+              document.processing_stage === 'extracting_basic_info' || extractingBasicInfo ? (
+                <div className="w-full text-center py-4 text-gray-500">
+                  <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
+                  <p className="text-xs">正在提取基本信息...</p>
+                </div>
+              ) : document.processing_stage === 'ocr_completed' ? (
+                <div className="w-full text-center py-4">
+                  <p className="text-xs text-gray-500 mb-3">暂无基本信息</p>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExtractBasicInfo();
+                    }}
+                    disabled={extractingBasicInfo}
+                    className="px-4 py-2 bg-gradient-to-r from-blue-500 to-indigo-600 text-white rounded-lg hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium shadow-md"
+                  >
+                    {extractingBasicInfo ? '提取中...' : '💼 提取基本信息'}
+                  </button>
+                  {basicInfoError && (
+                    <p className="mt-2 text-xs text-red-500">{basicInfoError}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="w-full text-center py-4 text-gray-500">
+                  <p className="text-xs">请等待OCR识别完成后再提取基本信息</p>
+                </div>
+              )
             )}
 
             {/* 受保人 */}
@@ -483,25 +963,25 @@ function DocumentDetail() {
         </div>
 
         {/* 2. 计划书概要卡片 */}
-        {((document.summary && typeof document.summary === 'string' && document.summary.trim().length > 0) || document.processing_stage !== 'all_completed') && (
-          <div className="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-2 sm:p-4">
-            <div
-              className="flex items-center justify-between cursor-pointer hover:bg-gray-50 -mx-2 sm:-mx-4 px-2 sm:px-4 py-1 rounded"
-              onClick={() => setIsSummaryOpen(!isSummaryOpen)}
-            >
-              <div className="flex items-center space-x-1.5">
-                <FileText className="w-4 h-4 text-green-500" />
-                <h2 className="text-sm sm:text-base font-semibold text-gray-800">计划书概要</h2>
-              </div>
-              {isSummaryOpen ? (
-                <ChevronUp className="w-4 h-4 text-gray-400" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-gray-400" />
-              )}
+        <div className="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-2 sm:p-4">
+          <div
+            className="flex items-center justify-between cursor-pointer hover:bg-gray-50 -mx-2 sm:-mx-4 px-2 sm:px-4 py-1 rounded"
+            onClick={() => setIsSummaryOpen(!isSummaryOpen)}
+          >
+            <div className="flex items-center space-x-1.5">
+              <FileText className="w-4 h-4 text-green-500" />
+              <h2 className="text-sm sm:text-base font-semibold text-gray-800">计划书概要</h2>
             </div>
+            {isSummaryOpen ? (
+              <ChevronUp className="w-4 h-4 text-gray-400" />
+            ) : (
+              <ChevronDown className="w-4 h-4 text-gray-400" />
+            )}
+          </div>
 
-            {isSummaryOpen && (
-              document.summary && typeof document.summary === 'string' && document.summary.trim().length > 0 ? (
+          {isSummaryOpen && (
+            <>
+              {document.summary && typeof document.summary === 'string' && document.summary.trim().length > 0 ? (
                 <div className="mt-3 prose prose-sm max-w-none">
                   <ReactMarkdown
                     rehypePlugins={[rehypeRaw]}
@@ -530,131 +1010,336 @@ function DocumentDetail() {
                     {document.summary}
                   </ReactMarkdown>
                 </div>
-              ) : (
+              ) : document.processing_stage === 'extracting_summary' || extractingSummary ? (
                 <div className="mt-3 text-center py-6 text-gray-500">
                   <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-                  <p className="text-xs">计划书概要提取中...</p>
+                  <p className="text-xs">正在提取计划书概要...</p>
                 </div>
-              )
-            )}
-          </div>
-        )}
+              ) : document.processing_stage === 'all_completed' ? (
+                <div className="mt-3 text-center py-6">
+                  <p className="text-xs text-gray-500 mb-3">暂无计划书概要</p>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleExtractSummary();
+                    }}
+                    disabled={extractingSummary}
+                    className="px-4 py-2 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg hover:from-green-600 hover:to-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium shadow-md"
+                  >
+                    {extractingSummary ? '提取中...' : '📝 提取计划书概要'}
+                  </button>
+                  {summaryError && (
+                    <p className="mt-2 text-xs text-red-500">{summaryError}</p>
+                  )}
+                </div>
+              ) : (
+                <div className="mt-3 text-center py-6 text-gray-500">
+                  <p className="text-xs">请等待文档处理完成后再提取概要</p>
+                </div>
+              )}
+            </>
+          )}
+        </div>
 
-        {/* 3. 保单按年度现金价值卡片 */}
-        {((document.table1 && document.table1.years && document.table1.years.length > 0) || document.processing_stage !== 'all_completed') && (
+        {/* 3. 计划书表格分析基本情况 */}
+        {document.tablesummary && (
           <div className="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-2 sm:p-4">
-            <div
-              className="flex items-center justify-between cursor-pointer hover:bg-gray-50 -mx-2 sm:-mx-4 px-2 sm:px-4 py-1 rounded"
-              onClick={() => setIsTableOpen(!isTableOpen)}
-            >
-              <div className="flex items-center space-x-1.5">
-                <DollarSign className="w-4 h-4 text-purple-500" />
-                <h2 className="text-sm sm:text-base font-semibold text-gray-800">保单按年度现金价值</h2>
-                {document.table1?.years?.length > 0 && (
-                  <span className="text-xs text-gray-500">({document.table1.years.length} 条)</span>
+            <div className="flex items-center justify-between -mx-2 sm:-mx-4 px-2 sm:px-4 py-1">
+              <div
+                className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-50 flex-1 py-1 -mx-2 px-2 rounded"
+                onClick={() => setIsTableSummaryOpen(!isTableSummaryOpen)}
+              >
+                <Table className="w-4 h-4 text-blue-500" />
+                <h2 className="text-sm sm:text-base font-semibold text-gray-800">计划书表格分析基本情况</h2>
+                {isTableSummaryOpen ? (
+                  <ChevronUp className="w-4 h-4 text-gray-400 ml-auto" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-gray-400 ml-auto" />
                 )}
               </div>
-              {isTableOpen ? (
-                <ChevronUp className="w-4 h-4 text-gray-400" />
-              ) : (
-                <ChevronDown className="w-4 h-4 text-gray-400" />
-              )}
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleReanalyzeTableSummary();
+                }}
+                disabled={reanalyzingTableSummary || !document.content}
+                className="ml-2 flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-gradient-to-r from-blue-500 to-cyan-600 text-white text-xs rounded-lg hover:from-blue-600 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+                title={!document.content ? '无OCR内容，无法重新分析' : '重新分析表格'}
+              >
+                {reanalyzingTableSummary ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span className="hidden sm:inline">分析中...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span className="hidden sm:inline">重新分析</span>
+                  </>
+                )}
+              </button>
             </div>
+            {tableSummaryReanalyzeError && (
+              <div className="mt-2 text-xs text-red-500 px-2">{tableSummaryReanalyzeError}</div>
+            )}
 
-            {/* 表格 */}
-            {isTableOpen && (
-              document.table1 && document.table1.years && document.table1.years.length > 0 ? (
-                <div className="overflow-x-auto -mx-2 sm:mx-0 mt-2">
-                <table className="w-full text-xs border-collapse">
-                  <thead>
-                    <tr className="bg-gray-50 border-b-2 border-gray-200">
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-left font-medium text-gray-700 border-r border-gray-200 whitespace-nowrap" colSpan="2">
-                        <div className="flex items-center gap-1">
-                          <span>保单年度</span>
-                          <span className="text-gray-400">/</span>
-                          <span>年龄</span>
-                        </div>
-                      </th>
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-right font-medium text-gray-700 border-r border-gray-200 whitespace-nowrap">保证金额</th>
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-right font-medium text-gray-700 border-r border-gray-200 whitespace-nowrap">总额</th>
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-right font-medium text-gray-700 border-r border-gray-200 whitespace-nowrap">年化单利%</th>
-                      <th className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-right font-medium text-gray-700 whitespace-nowrap">IRR%</th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white">
-                    {document.table1.years.map((row, index) => {
-                    console.log('🔍 渲染行数据:', row);
-                    const age = document.insured_age ? parseInt(document.insured_age) + parseInt(row.policy_year) : null;
-
-                    // 计算年化单利和IRR
-                    const annualPremium = document?.annual_premium ? parseInt(document.annual_premium) : 0;
-                    const paymentYears = document?.payment_years ? parseInt(document.payment_years) : 0;
-                    const actualInvestment = annualPremium * Math.min(row.policy_year, paymentYears);
-                    const returnValue = row.total || 0;
-
-                    // 年化单利
-                    const simpleReturn = actualInvestment > 0 && returnValue > 0 && row.policy_year > 0
-                      ? ((returnValue - actualInvestment) / actualInvestment / row.policy_year * 100)
-                      : 0;
-
-                    // IRR (内部收益率)
-                    const irr = actualInvestment > 0 && returnValue > 0 && row.policy_year > 0
-                      ? (Math.pow(returnValue / actualInvestment, 1 / row.policy_year) - 1) * 100
-                      : 0;
-
-                    return (
-                      <tr key={index} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-                        <td className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-gray-800 border-r border-gray-100" colSpan="2">
-                          <div className="flex items-center gap-1">
-                            <span>{row.policy_year || '-'}</span>
-                            <span className="text-gray-400 text-xs">/</span>
-                            <span>{age ? `${age}岁` : '-'}</span>
-                          </div>
-                        </td>
-                        <td className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-right text-gray-800 border-r border-gray-100">{formatNumber(row.guaranteed)}</td>
-                        <td className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-right font-medium text-gray-900 border-r border-gray-100">{formatNumber(row.total)}</td>
-                        <td className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-right font-semibold text-purple-600 border-r border-gray-100">
-                          {!isNaN(simpleReturn) && simpleReturn !== 0 ? simpleReturn.toFixed(2) : '-'}
-                        </td>
-                        <td className="px-1.5 sm:px-3 py-1.5 sm:py-2 text-right font-semibold text-green-600">
-                          {!isNaN(irr) && irr !== 0 ? irr.toFixed(2) : '-'}
-                        </td>
-                      </tr>
-                    );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-              ) : (
-                <div className="mt-2 text-center py-6 text-gray-500">
-                  <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-                  <p className="text-xs">退保价值表提取中...</p>
+            {isTableSummaryOpen && (
+              <div className="mt-3 text-xs sm:text-sm leading-relaxed">
+                <div className="prose prose-sm max-w-none bg-gray-50 rounded p-3">
+                  <pre className="whitespace-pre-wrap font-sans text-gray-700">{document.tablesummary}</pre>
                 </div>
-              )
+              </div>
             )}
           </div>
         )}
 
-
-        {/* 4. 计划书内容卡片 */}
+        {/* 4. 保单价值表卡片 - 显示table1字段内容 */}
         <div className="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-2 sm:p-4">
-          <div
-            className="flex items-center justify-between cursor-pointer hover:bg-gray-50 -mx-2 sm:-mx-4 px-2 sm:px-4 py-1 rounded"
-            onClick={() => setIsContentOpen(!isContentOpen)}
-          >
-            <div className="flex items-center space-x-1.5">
+          <div className="flex items-center justify-between -mx-2 sm:-mx-4 px-2 sm:px-4 py-1">
+            <div
+              className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-50 flex-1 py-1 -mx-2 px-2 rounded"
+              onClick={() => setIsTable1Open(!isTable1Open)}
+            >
+              <Table className="w-4 h-4 text-indigo-500" />
+              <h2 className="text-sm sm:text-base font-semibold text-gray-800">保单价值表</h2>
+              {document.table1 && document.table1.data && document.table1.data.length > 0 && (
+                <span className="text-xs text-gray-500">
+                  ({document.table1.table_name || '退保价值表'} - {document.table1.row_count || document.table1.data.length} 行)
+                </span>
+              )}
+              {isTable1Open ? (
+                <ChevronUp className="w-4 h-4 text-gray-400 ml-auto" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-gray-400 ml-auto" />
+              )}
+            </div>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleReextractTable1();
+              }}
+              disabled={reextractingTable1 || !document.tablesummary}
+              className="ml-2 flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-gradient-to-r from-indigo-500 to-purple-600 text-white text-xs rounded-lg hover:from-indigo-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+              title={!document.tablesummary ? '无表格分析结果，无法提取' : '重新提取保单价值表'}
+            >
+              {reextractingTable1 ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span className="hidden sm:inline">提取中...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span className="hidden sm:inline">重新提取</span>
+                </>
+              )}
+            </button>
+          </div>
+          {table1ReextractError && (
+            <div className="mt-2 text-xs text-red-500 px-2">{table1ReextractError}</div>
+          )}
+
+          {isTable1Open && (
+            <>
+              {document.table1 && document.table1.data && document.table1.data.length > 0 ? (
+                <div className="overflow-x-auto -mx-2 sm:mx-0 mt-3">
+                  <div className="mb-2 text-xs text-gray-600">
+                    <strong>表格名称:</strong> {document.table1.table_name || '退保价值表'}
+                  </div>
+                  <table className="w-full text-xs border-collapse border border-gray-300">
+                    <thead className="bg-gray-100">
+                      <tr>
+                        {/* 支持数组格式和对象格式 */}
+                        {Array.isArray(document.table1.data[0])
+                          ? document.table1.fields?.map((field, idx) => (
+                              <th key={idx} className="border border-gray-300 px-2 sm:px-3 py-1.5 sm:py-2 text-left font-semibold text-gray-700 whitespace-nowrap">
+                                {field}
+                              </th>
+                            ))
+                          : Object.keys(document.table1.data[0]).map((col, idx) => (
+                              <th key={idx} className="border border-gray-300 px-2 sm:px-3 py-1.5 sm:py-2 text-left font-semibold text-gray-700 whitespace-nowrap">
+                                {col}
+                              </th>
+                            ))
+                        }
+                      </tr>
+                    </thead>
+                    <tbody className="bg-white">
+                      {document.table1.data.map((row, rowIdx) => (
+                        <tr key={rowIdx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
+                          {/* 支持数组格式和对象格式 */}
+                          {Array.isArray(row)
+                            ? row.map((cell, colIdx) => (
+                                <td key={colIdx} className="border border-gray-300 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-800 whitespace-nowrap">
+                                  {cell !== null && cell !== undefined ? cell : '-'}
+                                </td>
+                              ))
+                            : Object.keys(document.table1.data[0]).map((col, colIdx) => (
+                                <td key={colIdx} className="border border-gray-300 px-2 sm:px-3 py-1.5 sm:py-2 text-gray-800 whitespace-nowrap">
+                                  {row[col] !== null && row[col] !== undefined ? row[col] : '-'}
+                                </td>
+                              ))
+                          }
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <div className="mt-3 text-center py-6">
+                  <p className="text-xs text-gray-500 mb-3">暂无保单价值表数据</p>
+                  {document.tablesummary ? (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleReextractTable1();
+                      }}
+                      disabled={reextractingTable1}
+                      className="px-4 py-2 bg-gradient-to-r from-indigo-500 to-purple-600 text-white rounded-lg hover:from-indigo-600 hover:to-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all text-sm font-medium shadow-md"
+                    >
+                      {reextractingTable1 ? '提取中...' : '📊 提取保单价值表'}
+                    </button>
+                  ) : (
+                    <p className="text-xs text-gray-400">请先完成表格分析</p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        {/* 5. 计划书表格列表卡片 */}
+        {document?.plan_tables && document.plan_tables.length > 0 && (
+          <div className="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-2 sm:p-4">
+            <div className="flex items-center justify-between -mx-2 sm:-mx-4 px-2 sm:px-4 py-1">
+              <div
+                className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-50 flex-1 py-1 -mx-2 px-2 rounded"
+                onClick={() => setIsPlanTablesOpen(!isPlanTablesOpen)}
+              >
+                <Table className="w-4 h-4 text-blue-500" />
+                <h2 className="text-sm sm:text-base font-semibold text-gray-800">计划书表格列表</h2>
+                <span className="text-xs text-gray-500">({document.plan_tables.length} 个表格)</span>
+                {isPlanTablesOpen ? (
+                  <ChevronUp className="w-4 h-4 text-gray-400 ml-auto" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-gray-400 ml-auto" />
+                )}
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleReanalyzeTables();
+                }}
+                disabled={reanalyzingTables || !document.tablecontent}
+                className="ml-2 flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-xs rounded-lg hover:from-blue-600 hover:to-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+                title={!document.tablecontent ? '无表格内容，无法重新分析' : '重新分析表格'}
+              >
+                {reanalyzingTables ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span className="hidden sm:inline">分析中...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span className="hidden sm:inline">重新分析</span>
+                  </>
+                )}
+              </button>
+            </div>
+            {reanalyzeError && (
+              <div className="mt-2 text-xs text-red-500 px-2">{reanalyzeError}</div>
+            )}
+
+            {/* 表格列表 */}
+            {isPlanTablesOpen && (
+              <div className="mt-3 space-y-2">
+                {document.plan_tables.map((table) => (
+                  <div
+                    key={table.id}
+                    className="flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 rounded-lg border border-gray-200 transition-colors"
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-2">
+                        <span className="inline-flex items-center justify-center w-6 h-6 rounded-full bg-blue-100 text-blue-700 text-xs font-semibold">
+                          {table.table_number}
+                        </span>
+                        <h3 className="text-sm font-medium text-gray-900 truncate">
+                          {table.table_name}
+                        </h3>
+                      </div>
+                      <div className="mt-1 flex items-center space-x-3 text-xs text-gray-500">
+                        <span>{table.row_count} 行</span>
+                        {table.fields && (
+                          <span className="truncate max-w-xs">{table.fields}</span>
+                        )}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => window.open(`/table/${table.id}`, '_blank')}
+                      className="ml-3 flex-shrink-0 inline-flex items-center px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-medium rounded-md transition-colors"
+                    >
+                      <Eye className="w-3.5 h-3.5 mr-1" />
+                      查看表格
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 6. 计划书内容卡片 */}
+        <div className="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-2 sm:p-4">
+          <div className="flex items-center justify-between -mx-2 sm:-mx-4 px-2 sm:px-4 py-1">
+            <div
+              className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-50 rounded flex-1"
+              onClick={() => setIsContentOpen(!isContentOpen)}
+            >
               <FileText className="w-4 h-4 text-orange-500" />
               <h2 className="text-sm sm:text-base font-semibold text-gray-800">计划书内容</h2>
               {document.content && (
                 <span className="text-xs text-gray-500">({document.content_length?.toLocaleString() || 0} 字符)</span>
               )}
+              {isContentOpen ? (
+                <ChevronUp className="w-4 h-4 text-gray-400" />
+              ) : (
+                <ChevronDown className="w-4 h-4 text-gray-400" />
+              )}
             </div>
-            {isContentOpen ? (
-              <ChevronUp className="w-4 h-4 text-gray-400" />
-            ) : (
-              <ChevronDown className="w-4 h-4 text-gray-400" />
-            )}
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                handleReOCR();
+              }}
+              disabled={reOCRing || !document.file_path}
+              className="ml-2 flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-gradient-to-r from-orange-500 to-red-600 text-white text-xs rounded-lg hover:from-orange-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+              title={!document.file_path ? '无PDF文件，无法重新OCR' : '重新OCR识别'}
+            >
+              {reOCRing ? (
+                <>
+                  <Loader2 className="w-3 h-3 animate-spin" />
+                  <span className="hidden sm:inline">识别中...</span>
+                </>
+              ) : (
+                <>
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                  </svg>
+                  <span className="hidden sm:inline">重新OCR</span>
+                </>
+              )}
+            </button>
           </div>
+          {reOCRError && (
+            <div className="mt-2 text-xs text-red-500 px-2">{reOCRError}</div>
+          )}
 
           {isContentOpen && (
             document.content ? (
@@ -672,7 +1357,62 @@ function DocumentDetail() {
           )}
         </div>
 
-        {/* 5. 底部按钮 - 进入内容编辑器 */}
+        {/* 7. 表格页面内容卡片 */}
+        {document.tablecontent && (
+          <div className="w-full bg-white rounded-lg shadow-sm border border-gray-200 p-2 sm:p-4">
+            <div className="flex items-center justify-between -mx-2 sm:-mx-4 px-2 sm:px-4 py-1">
+              <div
+                className="flex items-center space-x-1.5 cursor-pointer hover:bg-gray-50 rounded flex-1"
+                onClick={() => setIsTableContentOpen(!isTableContentOpen)}
+              >
+                <Table className="w-4 h-4 text-teal-500" />
+                <h2 className="text-sm sm:text-base font-semibold text-gray-800">表格页面内容</h2>
+                <span className="text-xs text-gray-500">({document.tablecontent.length.toLocaleString()} 字符)</span>
+                {isTableContentOpen ? (
+                  <ChevronUp className="w-4 h-4 text-gray-400" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-gray-400" />
+                )}
+              </div>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  handleReextractTableContent();
+                }}
+                disabled={reanalyzingTableContent || !document.content}
+                className="ml-2 flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-gradient-to-r from-teal-500 to-cyan-600 text-white text-xs rounded-lg hover:from-teal-600 hover:to-cyan-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
+                title={!document.content ? '无OCR内容，无法重新提取' : '重新提取表格源代码'}
+              >
+                {reanalyzingTableContent ? (
+                  <>
+                    <Loader2 className="w-3 h-3 animate-spin" />
+                    <span className="hidden sm:inline">提取中...</span>
+                  </>
+                ) : (
+                  <>
+                    <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    <span className="hidden sm:inline">重新提取</span>
+                  </>
+                )}
+              </button>
+            </div>
+            {tableContentReanalyzeError && (
+              <div className="mt-2 text-xs text-red-500 px-2">{tableContentReanalyzeError}</div>
+            )}
+
+            {isTableContentOpen && (
+              <div className="bg-gray-50 rounded-lg p-2 sm:p-3 max-h-60 sm:max-h-80 overflow-y-auto mt-2 sm:mt-3">
+                <pre className="text-xs text-gray-700 whitespace-pre-wrap font-mono leading-snug">
+                  {document.tablecontent}
+                </pre>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* 8. 底部按钮 - 进入内容编辑器 */}
         <div className="w-full">
           <button
             onClick={() => navigate(`/document/${id}/content-editor`)}

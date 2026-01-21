@@ -3,6 +3,7 @@ import { useAppNavigate } from '../hooks/useAppNavigate';
 import { BuildingOffice2Icon } from '@heroicons/react/24/outline';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
+import CompanyIconDisplay from './CompanyIconDisplay';
 
 function PlanBuilder() {
   const onNavigate = useAppNavigate();
@@ -62,11 +63,8 @@ function PlanBuilder() {
           </button>
 
           <div className="text-center">
-            <div className="inline-flex items-center justify-center w-16 h-16 bg-gradient-to-br from-blue-600 to-indigo-600 rounded-2xl shadow-lg mb-4">
-              <BuildingOffice2Icon className="w-10 h-10 text-white" />
-            </div>
             <h1 className="text-3xl font-bold text-gray-900 mb-2">计划书制作</h1>
-            <p className="text-gray-600">选择保险公司查看可用的API接口</p>
+            <p className="text-gray-600">选择保险公司查看可用的工具</p>
           </div>
         </div>
 
@@ -77,47 +75,54 @@ function PlanBuilder() {
             <p className="text-gray-400 text-sm mt-2">请联系管理员添加保险公司</p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {companies.map((company) => (
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-3 md:gap-4">
+            {companies.map((company) => {
+              // 富卫公司使用稍小的logo
+              const isFWD = company.name === '富卫' || company.name === 'FWD' || company.name.includes('富卫');
+              const logoClasses = isFWD
+                ? "w-20 h-14 md:w-36 md:h-20"
+                : "w-32 h-20 md:w-52 md:h-32";
+
+              return (
               <button
                 key={company.code}
                 onClick={() => onNavigate(`insurance-company/${company.code}`)}
-                className="group bg-white border-2 border-gray-200 rounded-2xl p-8 hover:border-blue-400 hover:shadow-2xl transition-all duration-300 transform hover:scale-105 relative overflow-hidden"
+                className="group bg-white/95 backdrop-blur-xl border-2 border-white/80 rounded-lg md:rounded-xl py-0.5 px-2 md:py-1 md:px-3 hover:border-indigo-300 hover:shadow-[0_16px_48px_rgba(99,102,241,0.35),0_8px_20px_rgba(0,0,0,0.15),0_4px_8px_rgba(0,0,0,0.1)] hover:scale-[1.03] hover:-translate-y-1 transition-all duration-300 relative overflow-hidden aspect-square flex flex-col items-center justify-center shadow-[0_10px_35px_rgba(0,0,0,0.15),0_4px_12px_rgba(0,0,0,0.1),0_2px_4px_rgba(0,0,0,0.08)]"
               >
                 {/* 渐变背景 */}
                 <div className={`absolute inset-0 bg-gradient-to-br ${company.color_gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-300`}></div>
 
                 {/* 内容 */}
-                <div className="relative z-10">
-                  {/* 图标 */}
-                  <div className="flex items-center justify-center mb-4">
-                    <div className={`w-20 h-20 bg-gradient-to-br ${company.color_gradient} rounded-2xl flex items-center justify-center shadow-lg group-hover:shadow-2xl transition-all duration-300 transform group-hover:rotate-6`}>
-                      <span className="text-4xl">{company.icon}</span>
-                    </div>
+                <div className="relative z-10 flex flex-col items-center justify-center w-full h-full">
+                  {/* Logo/图标 */}
+                  <div className={`flex items-center justify-center mb-2 ${isFWD ? 'mt-2 md:mt-3' : ''}`}>
+                    <CompanyIconDisplay
+                      iconUrl={company.icon}
+                      companyName={company.name}
+                      imgSizeClasses={logoClasses}
+                      textClasses="text-4xl md:text-6xl"
+                      fallbackBgClasses={`bg-gradient-to-br ${company.color_gradient} rounded-xl md:rounded-2xl`}
+                    />
                   </div>
 
                   {/* 公司名称 */}
-                  <h3 className="text-2xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors">
+                  <h3 className={`text-sm md:text-lg font-bold text-gray-900 group-hover:text-blue-600 transition-colors text-center line-clamp-1 leading-none ${isFWD ? 'mt-1' : '-mt-2'}`}>
                     {company.name}
                   </h3>
 
                   {/* 英文名称 */}
-                  <p className="text-sm text-gray-500 mb-4">
-                    {company.name_en}
-                  </p>
-
-                  {/* 箭头图标 */}
-                  <div className="flex items-center justify-center text-gray-400 group-hover:text-blue-600 transition-colors">
-                    <svg className="w-6 h-6 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                    </svg>
-                  </div>
+                  {company.name_en && (
+                    <p className="text-[10px] md:text-xs text-gray-500 text-center line-clamp-1 leading-none mt-1">
+                      {company.name_en}
+                    </p>
+                  )}
                 </div>
 
                 {/* 装饰性元素 */}
                 <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br from-blue-100 to-transparent rounded-bl-full opacity-0 group-hover:opacity-50 transition-opacity duration-300"></div>
               </button>
-            ))}
+              );
+            })}
           </div>
         )}
 

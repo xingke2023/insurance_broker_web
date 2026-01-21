@@ -36,6 +36,17 @@ function PDFFooterRemover() {
     return saved ? parseInt(saved) : 1;
   });
 
+  // 页面范围选择 - 从localStorage读取
+  const [saveStartPage, setSaveStartPage] = useState(() => {
+    const saved = localStorage.getItem('pdf_save_start_page');
+    return saved ? parseInt(saved) : 1;
+  });
+
+  const [saveEndPage, setSaveEndPage] = useState(() => {
+    const saved = localStorage.getItem('pdf_save_end_page');
+    return saved ? parseInt(saved) : 0; // 0表示到最后一页
+  });
+
   // 区域擦除设置（重新设计）- 从localStorage读取
   const [removeAreas, setRemoveAreas] = useState(() => {
     const saved = localStorage.getItem('pdf_remove_areas');
@@ -82,6 +93,15 @@ function PDFFooterRemover() {
   useEffect(() => {
     localStorage.setItem('pdf_page_number_start', pageNumberStart.toString());
   }, [pageNumberStart]);
+
+  // 保存页面范围到localStorage
+  useEffect(() => {
+    localStorage.setItem('pdf_save_start_page', saveStartPage.toString());
+  }, [saveStartPage]);
+
+  useEffect(() => {
+    localStorage.setItem('pdf_save_end_page', saveEndPage.toString());
+  }, [saveEndPage]);
 
   // 保存擦除区域设置到localStorage
   useEffect(() => {
@@ -363,6 +383,8 @@ function PDFFooterRemover() {
       formData.append('custom_text', customText);
       formData.append('process_start_page', processStartPage);
       formData.append('page_number_start', pageNumberStart);
+      formData.append('save_start_page', saveStartPage);
+      formData.append('save_end_page', saveEndPage);
       if (pdfPassword) {
         formData.append('pdf_password', pdfPassword);
       }
@@ -463,6 +485,8 @@ function PDFFooterRemover() {
     setSelectedFile(null);
     setProcessStartPage(1);
     setPageNumberStart(1);
+    setSaveStartPage(1);
+    setSaveEndPage(0);
     setRemoveAreas({
       headerFull: { enabled: false, height: 50 },
       headerLeft: { enabled: false, width: 100, height: 100 },
@@ -951,6 +975,104 @@ function PDFFooterRemover() {
                   </div>
                 </div>
 
+                {/* 页面范围选择 */}
+                <div className="border-t border-gray-200 pt-4">
+                  <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-semibold text-purple-900 flex items-center gap-2">
+                        <svg className="w-5 h-5 text-purple-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        页面范围选择（只保存指定页面）
+                      </h3>
+                      <span className="text-xs text-green-600 flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                        </svg>
+                        自动记忆
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                      {/* 保存起始页 */}
+                      <div className="bg-white border border-purple-300 rounded-lg p-3 shadow-sm">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          保存起始页
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-600">从第</span>
+                          <input
+                            type="number"
+                            min="1"
+                            max={numPages || 999}
+                            value={saveStartPage}
+                            onChange={(e) => {
+                              const val = Math.max(1, parseInt(e.target.value) || 1);
+                              setSaveStartPage(val);
+                              // 如果起始页大于结束页且结束页不为0，自动调整结束页
+                              if (saveEndPage > 0 && val > saveEndPage) {
+                                setSaveEndPage(val);
+                              }
+                            }}
+                            className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          />
+                          <span className="text-xs text-gray-600">页开始保存</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                          只保留从这一页开始的内容
+                        </p>
+                      </div>
+
+                      {/* 保存结束页 */}
+                      <div className="bg-white border border-purple-300 rounded-lg p-3 shadow-sm">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">
+                          保存结束页
+                        </label>
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs text-gray-600">到第</span>
+                          <input
+                            type="number"
+                            min="0"
+                            max={numPages || 999}
+                            value={saveEndPage}
+                            onChange={(e) => {
+                              const val = Math.max(0, parseInt(e.target.value) || 0);
+                              // 如果输入的结束页小于起始页且不为0，设置为起始页
+                              if (val > 0 && val < saveStartPage) {
+                                setSaveEndPage(saveStartPage);
+                              } else {
+                                setSaveEndPage(val);
+                              }
+                            }}
+                            className="w-20 px-3 py-2 border border-gray-300 rounded-lg text-center text-sm focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
+                          />
+                          <span className="text-xs text-gray-600">页（0=最后一页）</span>
+                        </div>
+                        <p className="text-xs text-gray-500 mt-2">
+                          {saveEndPage === 0 ? '保存到最后一页' : `保存到第${saveEndPage}页`}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 说明提示 */}
+                    <div className="mt-3 bg-white border border-purple-200 rounded-lg p-3">
+                      <div className="flex items-start gap-2">
+                        <svg className="w-4 h-4 text-purple-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+                        </svg>
+                        <div className="text-xs text-gray-700">
+                          <p className="font-medium text-purple-900 mb-1">使用示例：</p>
+                          <ul className="space-y-1">
+                            <li>• 保存第3-10页：起始页=3，结束页=10</li>
+                            <li>• 保存第5页到最后：起始页=5，结束页=0</li>
+                            <li>• 保存全部：起始页=1，结束页=0</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
                 {/* 自定义文字 */}
                 <div>
                   <div className="flex items-center justify-between mb-2">
@@ -1062,10 +1184,21 @@ function PDFFooterRemover() {
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs flex-shrink-0 mt-0.5">4</span>
-                  <span>电脑端自动预览，查看擦除区域范围</span>
+                  <div>
+                    <span className="font-medium">设置页面范围（可选）：</span>
+                    <div className="text-xs text-gray-600 mt-1 space-y-1">
+                      <div>• 保存起始页：从第几页开始保存</div>
+                      <div>• 保存结束页：保存到第几页（0=最后一页）</div>
+                      <div className="text-purple-600 font-medium">• 只会保存指定范围内的页面</div>
+                    </div>
+                  </div>
                 </li>
                 <li className="flex items-start gap-2">
                   <span className="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs flex-shrink-0 mt-0.5">5</span>
+                  <span>电脑端自动预览，查看擦除区域范围</span>
+                </li>
+                <li className="flex items-start gap-2">
+                  <span className="w-5 h-5 bg-blue-600 text-white rounded-full flex items-center justify-center text-xs flex-shrink-0 mt-0.5">6</span>
                   <span>点击"移除页脚"处理并自动添加页码</span>
                 </li>
               </ul>

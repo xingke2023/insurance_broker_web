@@ -8,6 +8,7 @@ import PlanAnalyzer from './components/PlanAnalyzer'
 import PlanAnalyzer2 from './components/PlanAnalyzer2'
 import PlanDocumentManagement from './components/PlanDocumentManagement'
 import DocumentDetail from './components/DocumentDetail'
+import TableDetail from './components/TableDetail'
 import DocumentContentEditor from './components/DocumentContentEditor'
 import ContentCreator from './components/ContentCreator'
 import IPImageGenerator from './components/IPImageGenerator'
@@ -29,6 +30,11 @@ import CompanyComparisonCC from './components/CompanyComparisonCC'
 import MembershipPlans from './components/MembershipPlans'
 import Settings from './components/Settings'
 import ProductComparisonSettings from './components/ProductComparisonSettings'
+import AIConsultation from './components/AIConsultation'
+import AIConsultant from './components/AIConsultant'
+import CustomerCases from './components/CustomerCases'
+import CustomerCaseLibrary from './components/CustomerCaseLibrary'
+import CustomerCaseLibraryForum from './components/CustomerCaseLibraryForum'
 
 function App() {
   return (
@@ -76,6 +82,11 @@ function App() {
             <Route path="/document/:id/content-editor" element={
               <ProtectedRoute>
                 <DocumentContentEditor />
+              </ProtectedRoute>
+            } />
+            <Route path="/table/:tableId" element={
+              <ProtectedRoute>
+                <TableDetail />
               </ProtectedRoute>
             } />
             <Route path="/content-creator" element={
@@ -168,6 +179,18 @@ function App() {
                 <ProductComparisonSettings />
               </ProtectedRoute>
             } />
+            <Route path="/ai-consultation" element={
+              <ProtectedRoute>
+                <AIConsultation />
+              </ProtectedRoute>
+            } />
+            <Route path="/ai-consultant" element={
+              <ProtectedRoute>
+                <AIConsultant />
+              </ProtectedRoute>
+            } />
+            <Route path="/customer-cases" element={<CustomerCaseLibraryForum />} />
+            <Route path="/customer-cases/:id" element={<CustomerCaseLibraryForum />} />
 
             {/* 未匹配路由重定向到首页 */}
             <Route path="*" element={<Navigate to="/" replace />} />

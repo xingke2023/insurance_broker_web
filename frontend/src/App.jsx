@@ -32,9 +32,17 @@ import Settings from './components/Settings'
 import ProductComparisonSettings from './components/ProductComparisonSettings'
 import AIConsultation from './components/AIConsultation'
 import AIConsultant from './components/AIConsultant'
+import AIConsultantWithCases from './components/AIConsultantWithCases'
 import CustomerCases from './components/CustomerCases'
 import CustomerCaseLibrary from './components/CustomerCaseLibrary'
 import CustomerCaseLibraryForum from './components/CustomerCaseLibraryForum'
+import PlanComparisonDirect from './components/PlanComparisonDirect'
+import PlanComparisonHistory from './components/PlanComparisonHistory'
+import ChineseReport from './components/ChineseReport'
+import EnglishReport from './components/EnglishReport'
+import InsuranceProducts from './components/InsuranceProducts'
+import InsuranceProductDetail from './components/InsuranceProductDetail'
+import InsuranceCompanyDetail from './components/InsuranceCompanyDetail'
 
 function App() {
   return (
@@ -189,8 +197,34 @@ function App() {
                 <AIConsultant />
               </ProtectedRoute>
             } />
-            <Route path="/customer-cases" element={<CustomerCaseLibraryForum />} />
+            {/* 理财顾问 + 客户案例页面 */}
+            <Route path="/customer-cases" element={<CustomerCases />} />
             <Route path="/customer-cases/:id" element={<CustomerCaseLibraryForum />} />
+            {/* AI顾问 + 客户案例融合页面（保留作为备用） */}
+            <Route path="/ai-consultant-with-cases" element={<AIConsultantWithCases />} />
+            {/* 独立的客户案例库页面 */}
+            <Route path="/customer-case-library" element={<CustomerCaseLibrary />} />
+
+            {/* 香港保险产品大全 */}
+            <Route path="/insurance-products" element={<InsuranceProducts />} />
+            <Route path="/insurance-product/:id" element={<InsuranceProductDetail />} />
+            <Route path="/insurance-company/:id" element={<InsuranceCompanyDetail />} />
+
+            {/* 报告查看 - 公开访问 */}
+            <Route path="/zh-report" element={<ChineseReport />} />
+            <Route path="/en-report" element={<EnglishReport />} />
+
+            {/* 计划书直接对比 */}
+            <Route path="/plan-comparison" element={
+              <ProtectedRoute>
+                <PlanComparisonDirect />
+              </ProtectedRoute>
+            } />
+            <Route path="/comparison-history" element={
+              <ProtectedRoute>
+                <PlanComparisonHistory />
+              </ProtectedRoute>
+            } />
 
             {/* 未匹配路由重定向到首页 */}
             <Route path="*" element={<Navigate to="/" replace />} />

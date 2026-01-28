@@ -62,19 +62,32 @@ function Dashboard() {
     const fetchIpImage = async () => {
       try {
         const token = localStorage.getItem('access_token');
-        if (!token) return;
+        if (!token) {
+          console.log('❌ Dashboard IP形象: 未找到token');
+          return;
+        }
 
+        console.log('🔍 Dashboard IP形象: 开始获取...');
         const response = await axios.get(`${API_BASE_URL}/api/ip-image/saved`, {
           headers: {
             'Authorization': `Bearer ${token}`
           }
         });
 
+        console.log('✅ Dashboard IP形象: API响应', response.data);
+
         if (response.data.status === 'success' && response.data.has_saved) {
+          console.log('✅ Dashboard IP形象: 设置图片数据', response.data.data);
           setIpImage(response.data.data);
+        } else {
+          console.log('⚠️ Dashboard IP形象: 未保存或状态异常', {
+            status: response.data.status,
+            has_saved: response.data.has_saved
+          });
         }
       } catch (error) {
-        console.error('获取IP形象失败:', error);
+        console.error('❌ 获取IP形象失败:', error);
+        console.error('❌ 错误详情:', error.response?.data);
       }
     };
 
@@ -245,23 +258,26 @@ function Dashboard() {
   // 工具分类
   const toolCategories = [
     {
-      category: '智能保险咨询',
+      category: 'AI智能保险顾问系统',
       tools: [
-        { name: 'AI保险顾问', icon: SparklesIcon, action: () => onNavigate('ai-consultant'), color: 'from-blue-500 via-cyan-600 to-teal-700', show: true },
-        { name: '客户案例库', icon: FolderIcon, action: () => onNavigate('customer-cases'), color: 'from-teal-500 via-green-600 to-emerald-700', show: true },
+        { name: 'AI保险顾问', icon: SparklesIcon, action: () => onNavigate('customer-cases'), color: 'from-blue-500 via-cyan-600 to-teal-700', show: true },
+        { name: '客户案例库', icon: DocumentTextIcon, action: () => onNavigate('customer-case-library'), color: 'from-indigo-500 via-purple-600 to-pink-700', show: true },
+        { name: '香港保险产品大全', icon: FolderIcon, action: () => onNavigate('insurance-products'), color: 'from-cyan-500 via-blue-600 to-indigo-700', show: true },
       ]
     },
     {
-      category: '保单与计划书',
+      category: 'AI保單與計畫書',
       tools: [
-        { name: '计划书分析和比对工具', icon: FolderIcon, action: () => onNavigate('plan-management'), color: 'from-blue-500 via-blue-600 to-indigo-700', show: true },
-        { name: '计划书分步骤分析', icon: DocumentTextIcon, action: () => onNavigate('plan-analyzer-2'), color: 'from-indigo-500 via-purple-600 to-purple-700', show: canAccessPlanAnalyzer() },
-        { name: '计划书制作工具', icon: DocumentTextIcon, action: () => onNavigate('plan-builder'), color: 'from-purple-500 via-purple-600 to-pink-700', show: true },
-        { name: '港险产品比对工具', icon: ChartBarIcon, action: () => onNavigate('company-comparison'), color: 'from-purple-500 via-purple-600 to-pink-700', show: true },
+        { name: '计划书分析', icon: FolderIcon, action: () => onNavigate('plan-management'), color: 'from-blue-500 via-blue-600 to-indigo-700', show: true },
+        { name: '计划书对比', icon: DocumentTextIcon, action: () => onNavigate('plan-comparison'), color: 'from-blue-500 via-indigo-600 to-indigo-700', show: true },
+        { name: '计划书分步骤分析', icon: DocumentTextIcon, action: () => onNavigate('plan-analyzer-2'), color: 'from-indigo-500 via-purple-600 to-purple-700', show: false },
+        { name: '计划书制作', icon: DocumentTextIcon, action: () => onNavigate('plan-builder'), color: 'from-purple-500 via-purple-600 to-pink-700', show: true },
+        { name: '主流产品收益数据统计表', icon: ChartBarIcon, action: () => onNavigate('company-comparison'), color: 'from-purple-500 via-purple-600 to-pink-700', show: true },
+        { name: '保险品种AI数据训练和分析管理', icon: SparklesIcon, action: () => window.open('http://43.153.64.160:8302/', '_blank'), color: 'from-indigo-500 via-purple-600 to-violet-700', show: true },
       ]
     },
     {
-      category: '打造个人IP与营销工具',
+      category: 'AI办公与提效',
       tools: [
         { name: '打造个人IP形象', icon: SparklesIcon, action: () => onNavigate('ip-image-generator'), color: 'from-pink-500 via-rose-600 to-rose-700', show: true },
         { name: '宣传图制作(基于个人IP)', icon: DocumentTextIcon, action: () => onNavigate('content-image-generator'), color: 'from-rose-500 via-red-600 to-red-700', show: true },
@@ -269,11 +285,6 @@ function Dashboard() {
         { name: '个性化语音制作', icon: DevicePhoneMobileIcon, action: () => onNavigate('text-to-speech'), color: 'from-orange-500 via-amber-600 to-amber-700', show: true },
         { name: '我的图片库', icon: FolderIcon, action: () => onNavigate('media-library'), color: 'from-emerald-500 via-green-600 to-green-700', show: true },
         { name: '公众号写作及排版工具', icon: GlobeAltIcon, action: () => window.open('https://write.xingke888.com/editor', '_blank'), color: 'from-amber-500 via-yellow-600 to-yellow-700', show: true },
-      ]
-    },
-    {
-      category: '办公工具',
-      tools: [
         { name: '产品海报分析工具', icon: SparklesIcon, action: () => onNavigate('poster-analyzer'), color: 'from-green-500 via-teal-600 to-teal-700', show: true },
         { name: 'PDF页脚擦除工具', icon: DocumentTextIcon, action: () => onNavigate('pdf-footer-remover'), color: 'from-teal-500 via-cyan-600 to-cyan-700', show: true },
       ]

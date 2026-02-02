@@ -5,7 +5,7 @@ const resources = {
   'zh-CN': {
     translation: {
       // Header
-      "header.title": "MacroData香港保險行業AI賦能工具",
+      "header.title": "MacroData香港保險行業AI智能化工具產品功能演示",
       "header.subtitle": "香港保险行业AI智能化解决方案",
       "login": "登录",
       "register": "注册",
@@ -167,7 +167,7 @@ const resources = {
   'zh-TW': {
     translation: {
       // Header
-      "header.title": "MacroData香港保險行業AI賦能工具",
+      "header.title": "MacroData香港保險行業AI智能化工具產品功能演示",
       "header.subtitle": "香港保險行業AI智能化解決方案",
       "login": "登錄",
       "register": "註冊",

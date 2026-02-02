@@ -1,0 +1,199 @@
+实现两个核心功能：
+1. **AI智能咨询页面** - 客户输入个人情况，AI根据数据库产品推荐保险方案
+2. **客户案例展示页面** - 展示不同人生阶段的保险配置案例（扶幼保障期、收入成长期、责任高峰期、责任递减期、退休期）
+
+
+
+在insurance_products表增加以下字段，用于AI推荐产品时提供详细信息：
+
+- target_age_min (INT) - 目标年龄段最小值
+- target_age_max (INT) - 目标年龄段最大值
+- target_life_stage (VARCHAR) - 目标人生阶段（扶幼保障期/收入成长期/责任高峰期/责任递减期/退休期）
+- coverage_type (VARCHAR) - 保障类型（储蓄/重疾/医疗/教育基金/退休规划等）
+- min_annual_income (DECIMAL) - 最低年收入要求（台币）
+- features (TEXT/JSON) - 产品特点列表
+- ai_recommendation_prompt (TEXT) - AI推荐时的产品描述提示词
+
+执行Django migrations创建新字段。|03e12f49-e7f1-421a-b4a2-123da1567eca
+创建新文件 api/ai_consultant_service.py，实现以下功能：
+
+1. 定义客户信息数据结构（年龄、收入、家庭成员、保险需求、预算等）
+2. 编写产品匹配算法：
+- 根据年龄匹配target_age_min/max
+- 根据收入匹配min_annual_income
+- 根据需求匹配coverage_type
+- 计算匹配度评分
+3. 集成Gemini/DeepSeek AI服务：
+- 将客户信息和匹配产品列表作为上下文
+- 生成专业的保险建议报告
+- 包含推荐理由、保费预估、保障范围说明
+4. 返回结构化的推荐结果（JSON格式）|03e12f49-e7f1-421a-b4a2-123da1567eca
+在api/urls.py添加路由：
+- POST /api/ai-consultant/consult - 接收客户信息，返回AI推荐方案
+- GET /api/ai-consultant/products - 获取可推荐的产品列表（用于前端展示）
+
+在api/ai_consultant_views.py实现视图函数：
+- ai_consult_view - 处理咨询请求，调用ai_consultant_service
+- get_recommended_products - 返回符合条件的产品列表
+- 添加权限控制（需要登录）
+- 添加请求频率限制（防止滥用AI接口）|03e12f49-e7f1-421a-b4a2-123da1567eca
+在api/models.py新增模型：
+
+```python
+class CustomerCase(models.Model):
+title = models.CharField(max_length=200)  # 案例标题
+life_stage = models.CharField(max_length=50)  # 人生阶段
+customer_age = models.IntegerField()  # 客户年龄
+annual_income = models.DecimalField()  # 年收入
+family_structure = models.CharField(max_length=200)  # 家庭结构
+insurance_needs = models.TextField()  # 保险需求
+recommended_products = models.JSONField()  # 推荐产品列表
+total_annual_premium = models.DecimalField()  # 年缴保费总额
+case_image = models.ImageField()  # 案例配图
+case_description = models.TextField()  # 案例详细说明
+sort_order = models.IntegerField()  # 排序
+is_active = models.BooleanField(default=True)
+```
+
+执行migrations创建数据表。|03e12f49-e7f1-421a-b4a2-123da1567eca
+在api/urls.py添加路由：
+- GET /api/customer-cases - 获取所有案例列表
+- GET /api/customer-cases/:id - 获取单个案例详情
+- GET /api/customer-cases/by-stage/:stage - 按人生阶段筛选案例
+
+在api/customer_case_views.py实现视图函数：
+- get_customer_cases - 返回案例列表（支持按life_stage筛选）
+- get_customer_case_detail - 返回案例详情
+- 支持分页和排序|03e12f49-e7f1-421a-b4a2-123da1567eca
+创建 frontend/src/components/AIConsultant.jsx：
+
+1. 设计表单收集客户信息：
+- 年龄（数字输入）
+- 年收入（数字输入，台币）
+- 家庭成员（下拉选择：单身/已婚无子女/已婚有子女等）
+- 子女数量和年龄（条件显示）
+- 保险需求（多选：重疾保障/医疗保障/储蓄/子女教育/退休规划）
+- 预算范围（滑块或输入框，年缴保费）
+- 其他特殊需求（文本框）
+
+2. 提交按钮触发API调用 /api/ai-consultant/consult
+
+3. 展示AI推荐结果：
+- 推荐产品列表（卡片形式）
+- 每个产品显示：产品名、保险公司、年缴保费、推荐理由
+- 总保费汇总
+- AI生成的专业建议（Markdown格式）
+
+4. 交互优化：
+- Loading动画
+- 错误处理
+- 响应式设计（移动端友好）|03e12f49-e7f1-421a-b4a2-123da1567eca
+创建 frontend/src/components/CustomerCaseLibrary.jsx：
+
+1. 顶部Tab导航栏切换人生阶段：
+- 扶幼保障期（0-6岁父母）
+- 收入成长期（25-35岁）
+- 责任高峰期（35-50岁）
+- 责任递减期（50-65岁）
+- 退休期（65岁以上）
+
+2. 案例列表展示（每个阶段）：
+- Grid布局展示案例卡片
+- 每张卡片包含：
+- 案例配图（CustomerCase.case_image）
+- 案例标题
+- 客户基本信息（年龄、收入、家庭结构）
+- 年缴保费总额
+- 查看详情按钮
+
+3. 案例详情弹窗/页面：
+- 完整案例说明
+- 推荐产品详细列表
+- 保障分析图表
+- 分享功能|03e12f49-e7f1-421a-b4a2-123da1567eca
+在frontend/src/components/Dashboard.jsx的工具分类中新增：
+
+```javascript
+{
+category: '智能保险咨询',
+tools: [
+{
+name: 'AI保险顾问',
+icon: SparklesIcon,
+action: () => onNavigate('ai-consultant'),
+color: 'from-blue-500 via-cyan-600 to-teal-700',
+show: true
+},
+{
+name: '客户案例库',
+icon: FolderIcon,
+action: () => onNavigate('customer-cases'),
+color: 'from-teal-500 via-green-600 to-emerald-700',
+show: true
+},
+]
+}
+```|03e12f49-e7f1-421a-b4a2-123da1567eca
+在frontend/src/App.jsx添加路由：
+
+```javascript
+<Route path="/ai-consultant" element={
+<ProtectedRoute>
+<AIConsultant />
+</ProtectedRoute>
+} />
+<Route path="/customer-cases" element={
+<ProtectedRoute>
+<CustomerCaseLibrary />
+</ProtectedRoute>
+} />
+<Route path="/customer-cases/:id" element={
+<ProtectedRoute>
+<CustomerCaseDetail />
+</ProtectedRoute>
+} />
+```|03e12f49-e7f1-421a-b4a2-123da1567eca
+1. 通过Django Admin后台录入：
+- 更新insurance_products表，填充新增字段
+- 录入至少15个CustomerCase案例（每个阶段3个）
+- 准备案例配图（上传到media目录）
+
+2. 编写数据导入脚本（可选）：
+- 创建management command批量导入案例数据
+- 从Excel/CSV导入产品详细信息|03e12f49-e7f1-421a-b4a2-123da1567eca
+在api/ai_consultant_service.py精调AI提示词：
+
+1. System Prompt设计：
+- 定义AI角色为专业保险顾问
+- 要求输出结构化建议（使用Markdown格式）
+- 强调根据客户实际情况推荐，不过度推销
+
+2. User Prompt模板：
+- 客户信息摘要
+- 匹配产品列表
+- 具体分析要求（保费合理性、保障全面性、产品组合建议）
+
+3. Response格式约束：
+- JSON格式返回推荐产品ID列表
+- Markdown格式返回专业分析报告
+- 包含风险提示和注意事项|03e12f49-e7f1-421a-b4a2-123da1567eca
+1. 功能测试：
+- 测试不同客户信息输入的AI推荐准确性
+- 测试案例展示页面的筛选和展示
+- 测试移动端响应式布局
+
+2. 性能优化：
+- 添加AI响应缓存（相同输入返回缓存结果）
+- 优化产品匹配算法性能
+- 图片懒加载和压缩
+
+3. 用户体验优化：
+- 添加表单自动保存（LocalStorage）
+- 优化Loading状态展示
+- 添加推荐结果导出为PDF功能|03e12f49-e7f1-421a-b4a2-123da1567eca
+1. 更新requirements.txt（如有新依赖）
+2. 运行migrations更新生产数据库
+3. 重启Django服务：`sudo supervisorctl restart harry-insurance:harry-insurance-django`
+4. 重新构建前端：`cd frontend && npm run build`
+5. 重启前端服务：`sudo supervisorctl restart harry-insurance:harry-insurance-frontend`
+6. 验证生产环境功能正常|03e12f49-e7f1-421a-b4a2-123da1567eca

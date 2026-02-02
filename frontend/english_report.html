@@ -1,0 +1,476 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hong Kong Insurance AI Intelligent Solution | Project Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Chosen Palette: Warm Corporate Tech -->
+    <!-- Application Structure Plan: 
+         Full English translation of the dashboard.
+         - Updated all text content, labels, tooltips, and chart data to English.
+         - Maintained the exact structure and functionality of V3.
+         Confirmed NO SVG and NO Mermaid JS. -->
+
+    <style>
+        body {
+            font-family: 'Noto Sans', sans-serif;
+            background-color: #fdfbf7;
+            color: #334155;
+        }
+
+        /* MANDATORY CHART CONTAINER STYLING */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+
+        /* Custom Utilities */
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .nav-btn.active {
+            background-color: #1e3a8a;
+            color: white;
+            border-color: #1e3a8a;
+        }
+        .tech-layer {
+            transition: all 0.2s;
+            border-left: 4px solid transparent;
+        }
+        .tech-layer:hover {
+            border-left-color: #ea580c;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        .timeline-line {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 100%;
+            background-color: #e2e8f0;
+            z-index: 0;
+        }
+        @media (max-width: 768px) {
+            .timeline-line {
+                left: 20px;
+            }
+        }
+        .demo-btn-pulse {
+            animation: pulse-orange 2s infinite;
+        }
+        @keyframes pulse-orange {
+            0% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(234, 88, 12, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0); }
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <!-- Navigation / Header -->
+    <header class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <div class="flex items-center space-x-2 flex-shrink-0">
+                <span class="h-8 w-8 bg-orange-600 rounded flex items-center justify-center text-white font-bold">M</span>
+                <span class="text-xl font-bold text-slate-800 tracking-tight">MACRODATA <span class="text-orange-600">AI</span></span>
+            </div>
+            
+            <nav class="hidden md:flex space-x-6 items-center">
+                <a href="#overview" class="text-slate-600 hover:text-orange-600 font-medium transition text-sm">Overview</a>
+                <a href="#solution" class="text-slate-600 hover:text-orange-600 font-medium transition text-sm">Solution</a>
+                <a href="#tech" class="text-slate-600 hover:text-orange-600 font-medium transition text-sm">Technology</a>
+                <a href="https://www.hongkong-insurance.com/" target="_blank" class="px-3 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-full font-bold hover:bg-orange-100 transition flex items-center text-xs">
+                    <span class="mr-1">🚀</span> Product Demo
+                </a>
+            </nav>
+
+            <!-- Reporting Unit Info -->
+            <div class="text-xs text-slate-500 text-right hidden lg:block leading-tight">
+                <div class="font-bold text-slate-800 mb-1">Reporting Unit: HONGKONG MACRODATA TECHNOLOGY LIMITED</div>
+                <div>Presenter: Mi Xiaobing <span class="mx-1 text-slate-300">|</span> January 24, 2026</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section id="overview" class="bg-[#1e3a8a] text-white py-16 lg:py-24 relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-64 h-64 bg-orange-500 opacity-10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center lg:text-left">
+            <div class="lg:w-2/3">
+                <div class="inline-block px-3 py-1 bg-orange-600 bg-opacity-20 border border-orange-500 rounded-full text-orange-300 text-sm font-semibold mb-6">
+                    Project Declaration Plan
+                </div>
+                <h1 class="text-4xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-6">
+                    Hong Kong Insurance <br><span class="text-orange-500">AI Intelligent</span> Solution
+                </h1>
+                <p class="text-xl text-blue-100 mb-8 max-w-2xl leading-relaxed">
+                    Our vision is to reshape the Hong Kong insurance industry with AI. We enable AI capabilities while preserving the core functions of original systems, significantly enhancing operational efficiency for 100,000+ practitioners.
+                </p>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                    <a href="https://www.hongkong-insurance.com/" target="_blank" class="demo-btn-pulse px-8 py-3 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg transition shadow-lg flex items-center justify-center">
+                        Visit Demo Site ➜
+                    </a>
+                    <button onclick="document.getElementById('tech').scrollIntoView({behavior: 'smooth'})" class="px-8 py-3 bg-transparent border-2 border-white hover:bg-white hover:text-blue-900 text-white font-bold rounded-lg transition">
+                        View Architecture
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Market Context & Project Background -->
+    <section class="py-12 bg-white -mt-10 relative z-20 mx-4 lg:mx-auto max-w-7xl rounded-xl shadow-xl border border-slate-100">
+        <div class="px-6 lg:px-12">
+            <!-- Narrative Section -->
+            <div class="mb-10 grid grid-cols-1 lg:grid-cols-2 gap-10">
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-800 mb-4 border-l-4 border-orange-600 pl-4">Industry Status & Pain Points</h2>
+                    <p class="text-slate-600 leading-relaxed mb-4">
+                        Hong Kong has over <strong class="text-slate-900">100,000 insurance practitioners</strong>, yet their workflows are highly traditional. They rely excessively on manual processes, emails, and fragmented tools, resulting in extremely low efficiency.
+                    </p>
+                    <p class="text-slate-600 leading-relaxed">
+                        Meanwhile, insurance companies have invested heavily in building traditional digital systems (Core Systems). Replacing them entirely is costly and risky.
+                    </p>
+                </div>
+                <div class="bg-blue-50 p-6 rounded-lg border border-blue-100">
+                    <h2 class="text-2xl font-bold text-blue-900 mb-4 border-l-4 border-blue-600 pl-4">Background & Achievements</h2>
+                    <p class="text-slate-700 leading-relaxed mb-4">
+                        <strong class="text-blue-800">Our Strategy:</strong> "AI Capability Extension". We integrate AI capabilities seamlessly without disrupting the original core systems, ensuring a low-cost, high-efficiency upgrade.
+                    </p>
+                    <ul class="space-y-2 text-sm text-slate-600">
+                        <li class="flex items-start"><span class="text-orange-500 mr-2">●</span> Deeply involved in the field for <strong class="text-slate-900">6 months</strong> with active trial users.</li>
+                        <li class="flex items-start"><span class="text-orange-500 mr-2">●</span> Reached preliminary <strong class="text-slate-900">cooperation intention (LOI)</strong> with brokerage firms.</li>
+                        <li class="flex items-start"><span class="text-orange-500 mr-2">●</span> Validated the "Retain Core + AI Extension" technical path via research on 3 major insurers.</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 border-t border-slate-100 pt-8">
+                <div class="p-6 bg-slate-50 rounded-lg border-l-4 border-orange-500 card-hover">
+                    <div class="text-4xl font-bold text-slate-800 mb-2">100K+</div>
+                    <h3 class="font-bold text-slate-700 mb-2">Practitioners</h3>
+                    <p class="text-sm text-slate-500">Highly traditional workflows needing digital empowerment.</p>
+                </div>
+                <div class="p-6 bg-slate-50 rounded-lg border-l-4 border-blue-800 card-hover">
+                    <div class="text-4xl font-bold text-slate-800 mb-2">LOI</div>
+                    <h3 class="font-bold text-slate-700 mb-2">Prelim. Cooperation</h3>
+                    <p class="text-sm text-slate-500">Reached preliminary cooperation intention with key brokerage firms.</p>
+                </div>
+                <div class="p-6 bg-slate-50 rounded-lg border-l-4 border-orange-500 card-hover">
+                    <div class="text-4xl font-bold text-slate-800 mb-2">6 Months</div>
+                    <h3 class="font-bold text-slate-700 mb-2">Deep Engagement</h3>
+                    <p class="text-sm text-slate-500">Products are mature with active trial users.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Dual Engine Solution Section -->
+    <section id="solution" class="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+            <h2 class="text-3xl lg:text-4xl font-bold text-slate-800 mb-4">Dual-Engine Solution</h2>
+            <p class="text-lg text-slate-600 max-w-3xl mx-auto">
+                Retaining original core systems while extending AI capabilities for seamless upgrades.
+            </p>
+        </div>
+
+        <!-- Interactive Tabs -->
+        <div class="flex flex-col md:flex-row justify-center mb-10 space-y-4 md:space-y-0 md:space-x-6">
+            <button id="btn-efficiency" onclick="switchTab('efficiency')" class="nav-btn active px-8 py-4 rounded-full border-2 border-slate-200 text-slate-600 font-bold text-lg transition shadow-sm flex items-center justify-center gap-2">
+                <span>⚡</span> Insurance Industry AI Office Efficiency Tool
+            </button>
+            <button id="btn-consultant" onclick="switchTab('consultant')" class="nav-btn px-8 py-4 rounded-full border-2 border-slate-200 text-slate-600 font-bold text-lg transition shadow-sm flex items-center justify-center gap-2">
+                <span>🧠</span> AI Intelligent Insurance Consultant System
+            </button>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden relative min-h-[650px]">
+            
+            <!-- Content: Efficiency -->
+            <div id="content-efficiency" class="p-8 lg:p-12 block animate-fade-in">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                    <div>
+                        <div class="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold mb-4">Workflow Efficiency</div>
+                        <h3 class="text-2xl font-bold text-slate-800 mb-4">Releasing 70% of Admin Time</h3>
+                        <p class="text-slate-600 mb-6">
+                            By using AI extensions, we automate processes without overthrowing the insurer's original core system. We have launched standardized products addressing industry pain points.
+                        </p>
+                        
+                        <!-- Products List -->
+                        <div class="bg-orange-50 border border-orange-100 rounded-xl p-5 mb-6">
+                            <h4 class="font-bold text-orange-700 mb-3 flex items-center">
+                                <span class="mr-2">🚀</span> Formed Products
+                            </h4>
+                            <ul class="space-y-4 mb-5">
+                                <li class="flex items-start">
+                                    <div class="w-1.5 h-1.5 bg-orange-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                                    <div>
+                                        <strong class="text-slate-900 block">Intelligent Proposal Analysis & Comparison Tool</strong>
+                                        <span class="text-sm text-slate-600">Auto-extracts key data (IRR, Breakeven) from PDF proposals and generates multi-product comparison reports in seconds.</span>
+                                    </div>
+                                </li>
+                                <li class="flex items-start">
+                                    <div class="w-1.5 h-1.5 bg-orange-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                                    <div>
+                                        <strong class="text-slate-900 block">Insurance Product AI Data Training & Analysis System</strong>
+                                        <span class="text-sm text-slate-600">A one-stop backend system supporting data cleaning, annotation, vectorization training, and model analysis.</span>
+                                    </div>
+                                </li>
+                            </ul>
+                            <!-- Demo Button -->
+                            <a href="https://www.hongkong-insurance.com/" target="_blank" class="block w-full text-center py-2 bg-white border border-orange-300 text-orange-600 font-bold rounded-lg hover:bg-orange-600 hover:text-white transition">
+                                🌐 Visit Product Demo Site
+                            </a>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
+                        <h4 class="text-center font-bold text-slate-700 mb-4">Case Processing Time (Minutes)</h4>
+                        <div class="chart-container"><canvas id="efficiencyChart"></canvas></div>
+                        <p class="text-center text-xs text-slate-400 mt-4">Note: Based on actual product test data</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content: Consultant -->
+            <div id="content-consultant" class="p-8 lg:p-12 hidden animate-fade-in">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                    <div class="order-2 lg:order-1 bg-slate-50 rounded-xl p-6 border border-slate-200">
+                        <h4 class="text-center font-bold text-slate-700 mb-4">Capability Model</h4>
+                        <div class="chart-container"><canvas id="consultantChart"></canvas></div>
+                    </div>
+                    <div class="order-1 lg:order-2">
+                        <div class="inline-block px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-bold mb-4">Data Intelligence System</div>
+                        <h3 class="text-2xl font-bold text-slate-800 mb-4">AI Intelligent Insurance Consultant System</h3>
+                        <p class="text-slate-600 mb-4 text-sm leading-relaxed">
+                            Driven by <strong class="text-slate-800">data & algorithms</strong>, utilizing a <strong class="text-slate-800">deep learning engine</strong> for high-precision parsing and comparison. We build a personalized recommendation system based on a <strong class="text-slate-800">multi-factor dynamic model</strong> fusing actuarial data, user behavior, and historical policy features.
+                        </p>
+                        
+                        <div class="space-y-4">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold mt-1">1</div>
+                                <div class="ml-3">
+                                    <h4 class="text-sm font-bold text-slate-800">Massive Case Database</h4>
+                                    <p class="text-xs text-slate-500 mt-1">Accumulated extensive financial asset allocation cases for robust AI training.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold mt-1">2</div>
+                                <div class="ml-3">
+                                    <h4 class="text-sm font-bold text-slate-800">AI Optimal Financial Allocation</h4>
+                                    <p class="text-xs text-slate-500 mt-1">Conducts quantitative analysis and yield simulation based on user financial goals and risk profiles to output scientific, traceable optimization plans.</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold mt-1">3</div>
+                                <div class="ml-3">
+                                    <h4 class="text-sm font-bold text-slate-800">Compliance & Efficiency</h4>
+                                    <p class="text-xs text-slate-500 mt-1">Full-process digital design solves issues like complex clauses and inefficient comparisons, ensuring service compliance.</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Technology Section -->
+    <section id="tech" class="py-20 bg-slate-900 text-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl lg:text-4xl font-bold mb-4">Core Technology Architecture</h2>
+                <p class="text-slate-400 max-w-3xl mx-auto">
+                    Building a vertical domain intelligent platform based on <span class="text-orange-500 font-bold">RAG + LLM Fine-tuning</span>.
+                </p>
+            </div>
+
+            <!-- Architecture Diagram Container -->
+            <div class="flex flex-col lg:flex-row gap-6 items-stretch justify-center">
+                
+                <!-- 1. Input Layer -->
+                <div class="lg:w-1/4 bg-slate-800 rounded-xl p-6 border border-slate-700 flex flex-col relative group hover:border-blue-500 transition">
+                    <div class="bg-blue-900 text-blue-200 text-xs font-bold px-3 py-1 rounded-full w-max mb-4 uppercase tracking-wider">Step 1: Input</div>
+                    <h3 class="text-xl font-bold text-white mb-4 flex items-center">
+                        <span class="text-2xl mr-2">📂</span> Multi-Source Data
+                    </h3>
+                    <ul class="space-y-3 text-sm text-slate-300">
+                        <li class="flex items-center p-2 bg-slate-700/50 rounded border border-slate-700"><span class="mr-2 text-blue-400">•</span> All Insurer Product Docs & Data</li>
+                        <li class="flex items-center p-2 bg-slate-700/50 rounded border border-slate-700"><span class="mr-2 text-blue-400">•</span> Client Product Proposals</li>
+                        <li class="flex items-center p-2 bg-slate-700/50 rounded border border-slate-700"><span class="mr-2 text-blue-400">•</span> Consultation & After-sales Data</li>
+                    </ul>
+                    <div class="hidden lg:flex absolute top-1/2 -right-4 w-8 h-8 items-center justify-center z-10"><span class="text-slate-500 text-2xl">➔</span></div>
+                </div>
+
+                <!-- 2. Core Engine -->
+                <div class="lg:w-1/2 bg-slate-800 rounded-xl border-2 border-orange-600/50 p-1 relative shadow-[0_0_30px_rgba(234,88,12,0.15)] flex flex-col">
+                    <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-orange-600 text-white text-xs px-4 py-1 rounded-full uppercase tracking-wider font-bold shadow-lg z-20">Step 2: Core Engine 🧠</div>
+                    <div class="flex-1 bg-slate-900/50 rounded-lg p-6 flex flex-col gap-6 mt-4">
+                        <div class="tech-layer p-4 bg-slate-800 rounded border border-slate-700/50">
+                            <h4 class="text-orange-400 font-bold mb-2 flex items-center"><span class="w-6 h-6 rounded bg-orange-500/20 text-orange-500 flex items-center justify-center text-xs mr-2">2.3</span>Vector Engine + RAG</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-300">
+                                <div><span class="text-orange-500 mr-1">▸</span> <strong>Vector DB:</strong> MS-level Retrieval</div>
+                                <div><span class="text-orange-500 mr-1">▸</span> <strong>Multi-layer:</strong> Semantic + Keyword</div>
+                                <div><span class="text-orange-500 mr-1">▸</span> <strong>Dynamic Embedding:</strong> Adaptive</div>
+                                <div><span class="text-orange-500 mr-1">▸</span> <strong>Traceable:</strong> No Hallucination</div>
+                            </div>
+                        </div>
+                        <div class="tech-layer p-4 bg-slate-800 rounded border border-slate-700/50">
+                            <h4 class="text-blue-400 font-bold mb-2 flex items-center"><span class="w-6 h-6 rounded bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs mr-2">2.2</span>LLM Training & Tuning</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-300">
+                                <div><span class="text-blue-500 mr-1">▸</span> <strong>Pre-training:</strong> Insurance Corpus</div>
+                                <div><span class="text-blue-500 mr-1">▸</span> <strong>Instruction Tuning:</strong> Compliance</div>
+                                <div><span class="text-blue-500 mr-1">▸</span> <strong>Multi-task:</strong> QA & Summary</div>
+                                <div><span class="text-blue-500 mr-1">▸</span> <strong>RLHF:</strong> Expert Feedback</div>
+                            </div>
+                        </div>
+                        <div class="tech-layer p-4 bg-slate-800 rounded border border-slate-700/50">
+                            <h4 class="text-green-400 font-bold mb-2 flex items-center"><span class="w-6 h-6 rounded bg-green-500/20 text-green-400 flex items-center justify-center text-xs mr-2">2.1</span>ML & Algorithms</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-300">
+                                <div><span class="text-green-500 mr-1">▸</span> <strong>Predictive:</strong> Risk & Behavior</div>
+                                <div><span class="text-green-500 mr-1">▸</span> <strong>Clustering:</strong> Customer Tagging</div>
+                                <div><span class="text-green-500 mr-1">▸</span> <strong>Time Series:</strong> Sales Trends</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hidden lg:flex absolute top-1/2 -right-5 w-8 h-8 items-center justify-center z-10"><span class="text-slate-500 text-2xl">➔</span></div>
+                </div>
+
+                <!-- 3. Output Layer -->
+                <div class="lg:w-1/4 bg-slate-800 rounded-xl p-6 border border-slate-700 flex flex-col relative hover:border-blue-500 transition">
+                    <div class="bg-blue-900 text-blue-200 text-xs font-bold px-3 py-1 rounded-full w-max mb-4 uppercase tracking-wider">Step 3: Output</div>
+                    <h3 class="text-xl font-bold text-white mb-4 flex items-center"><span class="text-2xl mr-2">📱</span> Intelligent App</h3>
+                    <div class="space-y-3">
+                        <div class="p-3 bg-gradient-to-r from-slate-700 to-slate-800 rounded border-l-2 border-orange-500"><div class="text-sm font-bold text-white">Comparison Report Gen</div></div>
+                        <div class="p-3 bg-gradient-to-r from-slate-700 to-slate-800 rounded border-l-2 border-orange-500"><div class="text-sm font-bold text-white">Optimal Financial Plan</div></div>
+                        <div class="p-3 bg-gradient-to-r from-slate-700 to-slate-800 rounded border-l-2 border-blue-500"><div class="text-sm font-bold text-white">Instant Actuarial Q&A</div></div>
+                        <div class="p-3 bg-gradient-to-r from-slate-700 to-slate-800 rounded border-l-2 border-blue-500"><div class="text-sm font-bold text-white">Visual Data Charts</div></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Roadmap Section -->
+    <section id="roadmap" class="py-20 max-w-4xl mx-auto px-4">
+        <div class="text-center mb-16">
+            <h2 class="text-3xl font-bold text-slate-800">Project Roadmap</h2>
+        </div>
+        <div class="relative">
+            <div class="timeline-line"></div>
+            <!-- Milestone 1 -->
+            <div class="relative z-10 mb-12 flex flex-col md:flex-row items-center w-full">
+                <div class="order-1 md:w-5/12 text-center md:text-right md:pr-8">
+                    <h3 class="text-xl font-bold text-slate-800">Past 6 Months (Completed)</h3>
+                    <p class="text-slate-600 text-sm">Core algorithm R&D completed.<br>Completed system research for 1 top insurer.<br><strong class="text-orange-600">Two core products formed.</strong></p>
+                </div>
+                <div class="order-2 w-8 h-8 bg-green-500 rounded-full border-4 border-white shadow-md z-10 flex items-center justify-center my-4 md:my-0"><span class="text-white text-xs">✓</span></div>
+                <div class="order-3 md:w-5/12 md:pl-8"></div>
+            </div>
+            <!-- Milestone 2 -->
+            <div class="relative z-10 mb-12 flex flex-col md:flex-row items-center w-full">
+                <div class="order-1 md:w-5/12"></div>
+                <div class="order-2 w-8 h-8 bg-orange-500 rounded-full border-4 border-white shadow-md z-10 flex items-center justify-center my-4 md:my-0"><span class="text-white text-xs">●</span></div>
+                <div class="order-3 md:w-5/12 text-center md:text-left md:pl-8">
+                    <h3 class="text-xl font-bold text-slate-800">Now (Phase 1)</h3>
+                    <p class="text-slate-600 text-sm">Implement pilot deployment for brokers.<br>Launch portal website operations.</p>
+                </div>
+            </div>
+            <!-- Milestone 3 -->
+            <div class="relative z-10 flex flex-col md:flex-row items-center w-full">
+                <div class="order-1 md:w-5/12 text-center md:text-right md:pr-8">
+                    <h3 class="text-xl font-bold text-slate-800">Future 6-12 Months (Phase 2)</h3>
+                    <p class="text-slate-600 text-sm">Connect more insurer APIs.<br>Perfect the "HK Insurance Data Brain".</p>
+                </div>
+                <div class="order-2 w-8 h-8 bg-white border-4 border-slate-300 rounded-full z-10 my-4 md:my-0"></div>
+                <div class="order-3 md:w-5/12 md:pl-8"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800 text-slate-400 py-12 mt-auto text-center">
+        <h3 class="text-white text-lg font-bold mb-4">HONGKONG MACRODATA TECHNOLOGY LIMITED</h3>
+        <p class="mb-6">Reshaping the HK Insurance Industry with AI, Defining Professional Value with Data.</p>
+        <div class="flex justify-center space-x-6 text-sm mb-6">
+            <a href="https://www.hongkong-insurance.com/" target="_blank" class="text-orange-400 hover:text-orange-300 font-bold transition">Demo Site: www.hongkong-insurance.com</a>
+        </div>
+        <p class="text-xs text-slate-600">&copy; 2026 Macrodata Technology. All rights reserved.</p>
+    </footer>
+
+    <!-- Logic -->
+    <script>
+        function switchTab(tabId) {
+            document.getElementById('btn-efficiency').classList.toggle('active', tabId === 'efficiency');
+            document.getElementById('btn-consultant').classList.toggle('active', tabId === 'consultant');
+            
+            const effContent = document.getElementById('content-efficiency');
+            const consContent = document.getElementById('content-consultant');
+            
+            if (tabId === 'efficiency') {
+                consContent.classList.add('hidden');
+                effContent.classList.remove('hidden');
+            } else {
+                effContent.classList.add('hidden');
+                consContent.classList.remove('hidden');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Efficiency Chart
+            new Chart(document.getElementById('efficiencyChart'), {
+                type: 'bar',
+                data: {
+                    labels: [['Proposal', 'Generation'], ['Email', 'Reply'], ['Product', 'Compare']],
+                    datasets: [
+                        { label: 'Manual (min)', data: [45, 20, 60], backgroundColor: '#94a3b8' },
+                        { label: 'AI (min)', data: [2, 1, 3], backgroundColor: '#ea580c' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { tooltip: { callbacks: { title: (items) => items[0].label.join(' ') } } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // Consultant Chart
+            new Chart(document.getElementById('consultantChart'), {
+                type: 'radar',
+                data: {
+                    labels: ['Data Breadth', 'Actuarial Accuracy', 'Response Speed', 'Objectivity', 'Personalization'],
+                    datasets: [
+                        { label: 'Traditional', data: [40, 60, 50, 50, 70], backgroundColor: 'rgba(148, 163, 184, 0.2)', borderColor: '#94a3b8' },
+                        { label: 'AI Agent', data: [100, 95, 100, 100, 90], backgroundColor: 'rgba(234, 88, 12, 0.2)', borderColor: '#ea580c' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { r: { suggestedMin: 0, suggestedMax: 100 } }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

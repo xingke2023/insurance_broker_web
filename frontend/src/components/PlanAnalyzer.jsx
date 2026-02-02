@@ -187,16 +187,18 @@ function PlanAnalyzer() {
           // 根据processing_stage计算进度和状态
           const stageProgress = {
             'ocr_pending': 5,
-            'pending': 10,
-            'extracting_basic_info': 20,
-            'basic_info_completed': 30,
-            'extracting_tablesummary': 40,
-            'tablesummary_completed': 50,
-            'extracting_table': 60,
-            'table_completed': 70,
-            'extracting_wellness_table': 75,
-            'wellness_table_completed': 80,
-            'extracting_summary': 90,
+            'pending': 8,
+            'ocr_processing': 10,
+            'ocr_completed': 15,
+            'extracting_basic_info': 25,
+            'basic_info_completed': 35,
+            'extracting_tablesummary': 45,
+            'tablesummary_completed': 55,
+            'extracting_table': 65,
+            'table_completed': 75,
+            'extracting_wellness_table': 82,
+            'wellness_table_completed': 88,
+            'extracting_summary': 94,
             'all_completed': 100
           };
 
@@ -672,7 +674,13 @@ function PlanAnalyzer() {
         return;
       }
 
-      // 从数据库加载文档详情
+      // 直接跳转到文档详情页面
+      console.log('✅ 跳转到文档详情页面:', task.task_id);
+      onNavigate && onNavigate(`/document/${task.task_id}`);
+      return;
+
+      // 旧逻辑：从数据库加载文档详情（已废弃）
+      /*
       const response = await authFetch(`/api/ocr/documents/${task.task_id}/`);
       const data = await response.json();
 
@@ -719,6 +727,7 @@ function PlanAnalyzer() {
       } else {
         throw new Error(data.message || '加载失败');
       }
+      */
     } catch (error) {
       console.error('加载任务结果失败:', error);
       alert('加载任务结果失败，请重试');
@@ -903,6 +912,8 @@ function PlanAnalyzer() {
               // 更新进度条
               const stageMessages = {
                 'pending': '等待处理...',
+                'ocr_processing': '正在OCR识别文档...',
+                'ocr_completed': 'OCR识别完成，开始提取信息',
                 'extracting_basic_info': '正在提取基本信息...',
                 'basic_info_completed': '基本信息提取完成',
                 'extracting_tablesummary': '正在分析表格结构...',

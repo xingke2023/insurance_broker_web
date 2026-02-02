@@ -18,10 +18,20 @@ from .video_generator_views import (
 )
 from .tts_views import get_voices, synthesize_speech, download_audio
 from .personal_voice_views import get_personal_voices, create_personal_voice, synthesize_with_personal_voice, delete_personal_voice
-from .pdf_views import remove_pdf_footer, crop_pdf_footer
+from .pdf_views import remove_pdf_footer, crop_pdf_footer, extract_pdf_tables, extract_pdf_tables_plumber, extract_pdf_text, extract_tables_markdown
 from .poster_views import analyze_poster_view, get_analysis_templates
 from .axa_benefit_views import analyze_axa_benefit, calculate_withdrawal
-from .insurance_company_views import get_insurance_companies, get_company_requests, get_request_detail, get_company_request_by_name, execute_api_request, get_companies_standard_comparison
+from .insurance_company_views import (
+    get_insurance_companies,
+    get_insurance_company_detail,
+    get_company_requests,
+    get_request_detail,
+    get_company_request_by_name,
+    execute_api_request,
+    get_companies_standard_comparison,
+    get_insurance_products,
+    get_insurance_product_detail,
+)
 from .stripe_views import create_checkout_session, stripe_webhook, check_membership_status
 from .product_settings_views import get_all_products, manage_user_product_settings
 from .consultation_views import get_ai_consultation, get_customer_cases
@@ -29,9 +39,34 @@ from .ai_consultant_views import ai_consult_view, get_recommended_products, get_
 from .customer_case_views import (
     get_customer_cases as get_all_customer_cases,
     get_customer_case_detail,
-    get_cases_by_stage,
-    get_life_stages,
+    get_cases_by_tag,
+    get_all_tags,
     get_case_statistics
+)
+from .comparison_views import ComparisonReportViewSet, direct_compare_stream
+from .gemini_comparison_views import (
+    gemini_compare_plans,
+    gemini_compare_plans_stream,
+    get_comparison_history,
+    get_comparison_detail,
+    download_comparison_pdf,
+    delete_comparison
+)
+from .plan_comparison_views import (
+    compare_plans_gemini_stream,
+    get_comparison_history as get_plan_comparison_history,
+    get_comparison_detail as get_plan_comparison_detail,
+    download_comparison_pdf as download_plan_comparison_pdf,
+    delete_comparison as delete_plan_comparison,
+    chat_with_comparison
+)
+from .company_news_views import CompanyNewsViewSet
+from .scraper_views import (
+    scrape_company_news,
+    scrape_product_promotions,
+    scrape_company_products,
+    find_company_pages,
+    scraper_status
 )
 # 计划书提取功能已删除
 # from .plan_views import (
@@ -42,6 +77,8 @@ from .customer_case_views import (
 
 router = DefaultRouter()
 router.register(r'policies', InsurancePolicyViewSet, basename='policy')
+router.register(r'comparison', ComparisonReportViewSet, basename='comparison')
+router.register(r'company-news', CompanyNewsViewSet, basename='company-news')
 
 urlpatterns = [
     path('', include(router.urls)),
@@ -154,6 +191,10 @@ urlpatterns = [
     # PDF处理API
     path('pdf/remove-footer', remove_pdf_footer, name='remove-pdf-footer'),
     path('pdf/crop-footer', crop_pdf_footer, name='crop-pdf-footer'),
+    path('pdf/extract-tables', extract_pdf_tables, name='extract-pdf-tables'),
+    path('pdf/extract-tables-plumber', extract_pdf_tables_plumber, name='extract-pdf-tables-plumber'),
+    path('pdf/extract-text', extract_pdf_text, name='extract-pdf-text'),
+    path('pdf/extract-tables-markdown', extract_tables_markdown, name='extract-tables-markdown'),
 
     # 海报分析API
     path('poster/analyze', analyze_poster_view, name='analyze-poster'),
@@ -165,11 +206,16 @@ urlpatterns = [
 
     # 保险公司和请求配置API
     path('insurance-companies/', get_insurance_companies, name='get-insurance-companies'),
+    path('insurance-companies/<int:company_id>/', get_insurance_company_detail, name='get-insurance-company-detail'),
     path('insurance-companies/standard-comparison/', get_companies_standard_comparison, name='get-companies-standard-comparison'),
     path('insurance-companies/<str:company_code>/requests/', get_company_requests, name='get-company-requests'),
     path('insurance-companies/<str:company_code>/requests/<str:request_name>/', get_company_request_by_name, name='get-company-request-by-name'),
     path('insurance-companies/<str:company_code>/requests/<str:request_name>/execute', execute_api_request, name='execute-api-request'),
     path('insurance-requests/<int:request_id>/', get_request_detail, name='get-request-detail'),
+
+    # 保险产品API
+    path('insurance-products/', get_insurance_products, name='get-insurance-products'),
+    path('insurance-products/<int:product_id>/', get_insurance_product_detail, name='get-insurance-product-detail'),
 
     # 产品对比设置API
     path('company-comparison/products', get_all_products, name='get-all-products'),
@@ -184,12 +230,38 @@ urlpatterns = [
     path('ai-consultant/products', get_recommended_products, name='get-recommended-products'),
     path('ai-consultant/stats', get_consultation_stats, name='get-consultation-stats'),
 
+    # 计划书对比API（流式）
+    path('comparison/direct-compare-stream/', direct_compare_stream, name='direct-compare-stream'),
+
+    # Gemini PDF 对比分析API
+    path('gemini-comparison/compare/', gemini_compare_plans, name='gemini-compare-plans'),
+    path('gemini-comparison/compare-stream/', gemini_compare_plans_stream, name='gemini-compare-plans-stream'),
+    path('gemini-comparison/history/', get_comparison_history, name='get-comparison-history'),
+    path('gemini-comparison/<int:comparison_id>/', get_comparison_detail, name='get-comparison-detail'),
+    path('gemini-comparison/<int:comparison_id>/download/<int:pdf_number>/', download_comparison_pdf, name='download-comparison-pdf'),
+    path('gemini-comparison/<int:comparison_id>/delete/', delete_comparison, name='delete-comparison'),
+
     # 客户案例API
     path('customer-cases/', get_all_customer_cases, name='get-customer-cases'),
     path('customer-cases/<int:case_id>/', get_customer_case_detail, name='get-customer-case-detail'),
-    path('customer-cases/by-stage/<str:stage>/', get_cases_by_stage, name='get-cases-by-stage'),
-    path('customer-cases/life-stages/', get_life_stages, name='get-life-stages'),
+    path('customer-cases/by-tag/<str:tag>/', get_cases_by_tag, name='get-cases-by-tag'),
+    path('customer-cases/tags/', get_all_tags, name='get-all-tags'),
     path('customer-cases/statistics/', get_case_statistics, name='get-case-statistics'),
+
+    # 计划书直接对比API（Gemini直接分析PDF - 流式输出）
+    path('plan-comparison/compare/', compare_plans_gemini_stream, name='compare-plans-gemini-stream'),
+    path('plan-comparison/history/', get_plan_comparison_history, name='plan-comparison-history'),
+    path('plan-comparison/<int:comparison_id>/', get_plan_comparison_detail, name='plan-comparison-detail'),
+    path('plan-comparison/<int:comparison_id>/download/<int:pdf_number>/', download_plan_comparison_pdf, name='download-plan-comparison-pdf'),
+    path('plan-comparison/<int:comparison_id>/delete/', delete_plan_comparison, name='delete-plan-comparison'),
+    path('plan-comparison/<int:comparison_id>/chat/', chat_with_comparison, name='chat-with-comparison'),
+
+    # 保险公司信息爬虫API
+    path('scraper/company-news/', scrape_company_news, name='scrape-company-news'),
+    path('scraper/product-promotions/', scrape_product_promotions, name='scrape-product-promotions'),
+    path('scraper/company-products/', scrape_company_products, name='scrape-company-products'),
+    path('scraper/find-pages/', find_company_pages, name='find-company-pages'),
+    path('scraper/status/', scraper_status, name='scraper-status'),
 
     # 计划书提取功能路由已删除
     # path('insurance-companies/', get_insurance_companies, name='insurance-companies'),

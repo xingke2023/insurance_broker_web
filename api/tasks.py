@@ -738,18 +738,88 @@ def extract_table_from_content_based_on_summary(content, tablesummary):
     """
     根据tablesummary中推荐的表格信息，从content中提取表格数据并返回JSON格式
 
+    优化逻辑：
+    1. 从tablesummary中解析推荐表格的页码范围（如：第5-7页）
+    2. 只提取对应页面的content（而不是全部content）
+    3. 将页面子集发送给Gemini API进行表格提取
+
     Args:
-        content: OCR识别的完整内容（包含HTML表格）
-        tablesummary: 表格分析结果（包含推荐的表格信息）
+        content: OCR识别的完整内容（包含HTML表格，以==Start of OCR for page X==分页）
+        tablesummary: 表格分析结果（包含推荐的表格信息和页码范围）
 
     Returns:
         str: JSON格式的表格数据，或空字符串（如果失败）
     """
     import os
+    import re
     from google import genai
     from google.genai import types
 
     try:
+        # 步骤1：从tablesummary中提取推荐表格的页码范围
+        logger.info("🔍 步骤1：从tablesummary提取推荐表格的页码范围")
+
+        # 查找标记为推荐的表格
+        recommended_section = None
+        lines = tablesummary.split('\n')
+        current_table = []
+
+        for line in lines:
+            if line.strip().startswith('表格') or line.strip().startswith('表名'):
+                # 如果之前有推荐表格，保存它
+                if current_table and any('✅ 推荐' in l or '✅推荐' in l for l in current_table):
+                    recommended_section = '\n'.join(current_table)
+                    break
+                # 开始新表格
+                current_table = [line]
+            elif current_table:
+                current_table.append(line)
+
+        # 检查最后一个表格
+        if not recommended_section and current_table and any('✅ 推荐' in l or '✅推荐' in l for l in current_table):
+            recommended_section = '\n'.join(current_table)
+
+        # 提取页码范围
+        page_range = None
+        if recommended_section:
+            # 匹配 "页码范围：第X-Y页" 或 "页码范围：第X页"
+            page_match = re.search(r'页码范围[：:]\s*第(\d+)[-到]?(\d+)?页', recommended_section)
+            if page_match:
+                start_page = int(page_match.group(1))
+                end_page = int(page_match.group(2)) if page_match.group(2) else start_page
+                page_range = (start_page, end_page)
+                logger.info(f"   ✅ 找到推荐表格的页码范围: 第{start_page}-{end_page}页")
+
+        # 步骤2：根据页码范围提取对应页面的content
+        content_subset = content  # 默认使用全部content
+
+        if page_range:
+            logger.info(f"🔍 步骤2：提取第{page_range[0]}-{page_range[1]}页的content")
+
+            # 按页分割content
+            pages = re.split(r'==Start of OCR for page (\d+)==', content)
+            # 格式：['', '1', 'page1_content', '2', 'page2_content', ...]
+
+            extracted_pages = []
+            for i in range(1, len(pages), 2):
+                page_num = int(pages[i])
+                page_content = pages[i + 1] if i + 1 < len(pages) else ''
+
+                # 只提取指定范围的页面
+                if page_range[0] <= page_num <= page_range[1]:
+                    extracted_pages.append(f"==Start of OCR for page {page_num}==\n{page_content}")
+
+            if extracted_pages:
+                content_subset = '\n'.join(extracted_pages)
+                logger.info(f"   ✅ 成功提取 {len(extracted_pages)} 个页面，内容长度: {len(content_subset)} 字符（原长度: {len(content)}）")
+            else:
+                logger.warning(f"   ⚠️ 未找到页码范围对应的页面，将使用全部content")
+        else:
+            logger.warning("   ⚠️ 未找到页码范围信息，将使用全部content")
+
+        # 步骤3：调用Gemini API提取表格数据
+        logger.info("🔍 步骤3：调用Gemini API提取表格数据")
+
         # 获取Gemini API密钥
         gemini_api_key = os.getenv('GEMINI_API_KEY')
         if not gemini_api_key:
@@ -794,13 +864,12 @@ def extract_table_from_content_based_on_summary(content, tablesummary):
 
 **注意：实际输出应该是一行，没有任何换行和空格！**
 
-**OCR识别内容：**
-{content}
+**OCR识别内容（已根据页码范围筛选）：**
+{content_subset}
 
 请直接返回完整有效的JSON数据（确保所有括号和引号都闭合），不要包含markdown代码块标记。"""
 
-        logger.info("⏳ 开始调用 Gemini API 提取表格数据")
-        logger.info(f"   OCR内容长度: {len(content)} 字符")
+        logger.info(f"   使用content子集长度: {len(content_subset)} 字符")
         logger.info(f"   表格分析结果长度: {len(tablesummary)} 字符")
 
         # 调用Gemini API（设置最大输出token为65535）
@@ -1278,6 +1347,7 @@ def extract_tablesummary_task(self, document_id):
 2. 有些表可能跨页，但属于同一个逻辑表格，请统计完整行数
 3. 对每个表格，提取以下信息：
    - 表格名称
+   - **页码范围**（该表格出现在哪些页面，例如：第5-7页，或第8页）
    - 总行数（跨页的要统计完整行数，从年度1到最后）
    - **所有字段名称**（列出表格中的所有列/字段，用逗号分隔）
    - 是否包含"提取"/"入息"/"非保證入息"字段
@@ -1294,9 +1364,10 @@ def extract_tablesummary_task(self, document_id):
 
 **重要：必须在所有表格中选择一个作为推荐，即使没有完全符合优先条件的表格，也要从现有表格中选择一个最合适的，并用"✅ 推荐"明确标注。**
 
-**输出格式（必须包含推荐标记和所有字段）：**
+**输出格式（必须包含推荐标记、所有字段和页码范围）：**
 表格1：
 表名：詳細說明 - 退保價值 (只根據基本計劃計算)
+页码范围：第5-7页
 行数：100行（完整年度：1-100年）
 字段：保单年度终结, 已缴保费总额, 退保价值-保证现金价值, 退保价值-非保证金额, 退保价值-总额
 包含提取：否
@@ -1305,6 +1376,7 @@ def extract_tablesummary_task(self, document_id):
 
 表格2：
 表名：詳細說明 - 退保價值（包含非保證入息提取）
+页码范围：第8-10页
 行数：100行（完整年度：1-100年）
 字段：保单年度终结, 已缴保费总额, 该年提取款项-保证现金价值-A, 该年提取款项-非保证金额-终期红利-B, 该年提取款项-总额-A加B, 提取后退保价值-保证现金价值-C, 提取后退保价值-非保证金额-终期红利-D, 提取后退保价值-总额-C加D
 包含提取：是
@@ -1314,6 +1386,7 @@ def extract_tablesummary_task(self, document_id):
 
 表格3：
 表名：身故賠償
+页码范围：第11页
 行数：50行
 字段：保单年度终结, 身故赔偿-保证金额, 身故赔偿-非保证金额, 身故赔偿-总额
 包含提取：否
@@ -1325,10 +1398,11 @@ OCR识别结果（以==Start of OCR for page X==分页）：
 
 **特别注意：**
 1. 必须分析所有包含"保单年度终结"的表格
-2. 必须从中选择一个作为推荐（用"✅ 推荐"标注）
-3. 如果只有一个表格，也要标注为推荐
-4. 如果有多个表格，选择最符合条件的一个
-5. 即使表格不完全符合优先条件，也要选择一个最合适的
+2. 必须标注每个表格的页码范围（从OCR的分页标记中识别）
+3. 必须从中选择一个作为推荐（用"✅ 推荐"标注）
+4. 如果只有一个表格，也要标注为推荐
+5. 如果有多个表格，选择最符合条件的一个
+6. 即使表格不完全符合优先条件，也要选择一个最合适的
 
 请直接返回分析结果，不要包含markdown代码块标记。"""
 
@@ -1527,3 +1601,306 @@ def process_document_pipeline(document_id):
     ocr_document_task.apply_async(args=[document_id])
 
     return {'status': 'pipeline_started', 'document_id': document_id}
+
+
+@shared_task(bind=True, max_retries=2, default_retry_delay=60)
+def extract_table_data_direct_task(self, document_id):
+    """
+    直接使用Gemini从PDF提取表格数据并保存到table1字段
+
+    这是一个独立的任务，绕过OCR步骤，直接调用Gemini API分析PDF并提取格式化的表格数据
+
+    流程：
+    1. 读取文档的PDF文件路径
+    2. 调用 gemini_service.extract_table_data_from_pdf() 提取表格数据
+    3. 将返回的JSON数据保存到table1字段
+    4. 更新处理状态
+
+    Args:
+        document_id: PlanDocument的ID
+
+    Returns:
+        dict: {'success': bool, 'data': dict (if success), 'error': str (if failed)}
+    """
+    try:
+        logger.info("=" * 80)
+        logger.info(f"📊 Celery任务开始 - 直接提取表格数据 - 文档ID: {document_id}")
+        logger.info(f"   重试次数: {self.request.retries}/{self.max_retries}")
+
+        # 加载文档
+        try:
+            doc = PlanDocument.objects.get(id=document_id)
+        except PlanDocument.DoesNotExist:
+            error_msg = f"文档 {document_id} 不存在"
+            logger.error(error_msg)
+            return {'success': False, 'error': error_msg}
+
+        # 更新状态为"提取表格数据中"
+        doc.processing_stage = 'extracting_table1'
+        doc.last_processed_at = timezone.now()
+        doc.save(update_fields=['processing_stage', 'last_processed_at'])
+
+        # 检查PDF文件是否存在
+        if not doc.file_path:
+            error_msg = f"文档 {document_id} 没有PDF文件"
+            logger.error(error_msg)
+            doc.processing_stage = 'error'
+            doc.error_message = error_msg
+            doc.status = 'failed'
+            doc.save(update_fields=['processing_stage', 'error_message', 'status'])
+            return {'success': False, 'error': error_msg}
+
+        # 获取PDF文件绝对路径
+        pdf_path = doc.file_path.path
+        logger.info(f"📄 PDF文件路径: {pdf_path}")
+
+        # 检查文件是否存在
+        import os
+        if not os.path.exists(pdf_path):
+            error_msg = f"PDF文件不存在: {pdf_path}"
+            logger.error(error_msg)
+            doc.processing_stage = 'error'
+            doc.error_message = error_msg
+            doc.status = 'failed'
+            doc.save(update_fields=['processing_stage', 'error_message', 'status'])
+            return {'success': False, 'error': error_msg}
+
+        # 调用Gemini服务提取表格数据
+        from .gemini_service import extract_table_data_from_pdf
+
+        logger.info("🤖 调用Gemini服务提取表格数据...")
+        result = extract_table_data_from_pdf(pdf_path)
+
+        if not result.get('success'):
+            error_msg = result.get('error', '未知错误')
+            logger.error(f"❌ 表格数据提取失败: {error_msg}")
+
+            # 如果是API错误且还有重试机会，触发重试
+            if self.request.retries < self.max_retries:
+                logger.warning(f"⏳ 将在60秒后重试（第{self.request.retries + 1}次重试）")
+                raise self.retry(exc=Exception(error_msg))
+
+            # 重试次数用尽，标记为失败
+            doc.processing_stage = 'error'
+            doc.error_message = error_msg
+            doc.status = 'failed'
+            doc.save(update_fields=['processing_stage', 'error_message', 'status'])
+            return {'success': False, 'error': error_msg}
+
+        # 提取成功，保存到table1字段
+        table_data = result.get('table_data', {})
+        import json
+        table1_json = json.dumps(table_data, ensure_ascii=False, indent=2)
+
+        doc.table1 = table1_json
+
+        # 同时将policy_info的数据更新到数据库字段
+        policy_info = table_data.get('policy_info', {})
+        if policy_info:
+            logger.info(f"📋 检测到policy_info，将更新数据库字段")
+
+            # 提取并更新受保人信息（兼容简体、繁体、英文字段名）
+            insured_name = policy_info.get('姓名') or policy_info.get('insured_name')
+            if insured_name:
+                doc.insured_name = insured_name
+
+            insured_age = policy_info.get('年龄') or policy_info.get('年齡') or policy_info.get('insured_age')
+            if insured_age:
+                # 尝试转换为整数，如果失败则保留原字符串
+                try:
+                    doc.insured_age = int(str(insured_age).replace('岁', '').replace('歲', '').strip())
+                except (ValueError, AttributeError):
+                    doc.insured_age = None
+
+            insured_gender = policy_info.get('性别') or policy_info.get('性別') or policy_info.get('insured_gender')
+            if insured_gender:
+                doc.insured_gender = insured_gender
+
+            # 提取并更新保险产品信息（兼容简体、繁体、英文字段名）
+            insurance_company = (policy_info.get('保险公司名称') or
+                                policy_info.get('保險公司名稱') or
+                                policy_info.get('insurance_company'))
+            if insurance_company:
+                doc.insurance_company = insurance_company
+
+            insurance_product = (policy_info.get('产品名称') or
+                                policy_info.get('產品名稱') or
+                                policy_info.get('product_name'))
+            if insurance_product:
+                doc.insurance_product = insurance_product
+
+            # 提取并更新保费信息（兼容简体、繁体、英文字段名）
+            sum_assured = policy_info.get('保额') or policy_info.get('保額') or policy_info.get('notional_amount')
+            if sum_assured:
+                # 移除千位分隔符并转换为数字
+                try:
+                    sum_assured_str = str(sum_assured).replace(',', '').strip()
+                    doc.sum_assured = float(sum_assured_str)
+                except (ValueError, AttributeError):
+                    pass
+
+            annual_premium = (policy_info.get('年缴保费') or
+                             policy_info.get('年繳保費') or
+                             policy_info.get('annual_premium'))
+            if annual_premium:
+                try:
+                    annual_premium_str = str(annual_premium).replace(',', '').strip()
+                    doc.annual_premium = float(annual_premium_str)
+                except (ValueError, AttributeError):
+                    pass
+
+            payment_years = (policy_info.get('缴费年数') or
+                            policy_info.get('繳費年數') or
+                            policy_info.get('premium_payment_term'))
+            if payment_years:
+                # 尝试转换为整数
+                try:
+                    payment_years_str = str(payment_years).replace('年', '').replace(' ', '').strip()
+                    doc.payment_years = int(payment_years_str)
+                except (ValueError, AttributeError):
+                    pass
+
+            total_premium = (policy_info.get('总保费') or
+                           policy_info.get('總保費') or
+                           policy_info.get('total_premium'))
+            if total_premium:
+                # 移除千位分隔符并转换为数字
+                try:
+                    total_premium_str = str(total_premium).replace(',', '').strip()
+                    doc.total_premium = float(total_premium_str)
+                except (ValueError, AttributeError):
+                    pass
+
+            insurance_period = (policy_info.get('保险期限') or
+                              policy_info.get('保險期限') or
+                              policy_info.get('coverage_period'))
+            if insurance_period:
+                doc.insurance_period = insurance_period
+
+            logger.info(f"✅ 已从policy_info更新数据库字段")
+            logger.info(f"   姓名: {doc.insured_name}")
+            logger.info(f"   年龄: {doc.insured_age}")
+            logger.info(f"   性别: {doc.insured_gender}")
+            logger.info(f"   公司: {doc.insurance_company}")
+            logger.info(f"   产品: {doc.insurance_product}")
+            logger.info(f"   保额: {doc.sum_assured}")
+            logger.info(f"   年缴保费: {doc.annual_premium}")
+            logger.info(f"   缴费年数: {doc.payment_years}")
+            logger.info(f"   总保费: {doc.total_premium}")
+            logger.info(f"   保险期限: {doc.insurance_period}")
+
+        # 提取并保存财务规划信息到summary字段（转换为HTML格式）
+        financial_summary_text = result.get('financial_planning_summary', '')
+        financial_qa = result.get('financial_planning_qa', [])
+
+        if financial_summary_text or financial_qa:
+            # 构建HTML格式的summary
+            html_parts = []
+
+            # 1. 财务规划总结（蓝色卡片）
+            if financial_summary_text:
+                html_parts.append(f'''
+<div style="background: linear-gradient(to bottom right, #eff6ff, #e0e7ff); border-radius: 0.5rem; padding: 1rem; border: 1px solid #bfdbfe; margin-bottom: 1rem;">
+    <h3 style="font-size: 0.875rem; font-weight: 600; color: #1f2937; margin-bottom: 0.75rem; display: flex; align-items: center;">
+        <svg style="width: 1rem; height: 1rem; margin-right: 0.5rem; color: #2563eb;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+        财务规划总结
+    </h3>
+    <div style="font-size: 0.875rem; color: #374151; white-space: pre-wrap; line-height: 1.625;">
+{financial_summary_text}
+    </div>
+</div>
+''')
+                logger.info(f"📝 检测到财务规划总结，长度: {len(financial_summary_text)} 字符")
+
+            # 2. 财务规划问答（绿色卡片）
+            if financial_qa and len(financial_qa) > 0:
+                qa_items_html = []
+                for qa in financial_qa:
+                    question = qa.get('question', '')
+                    answer = qa.get('answer', '')
+                    qa_items_html.append(f'''
+        <div style="background: white; border-radius: 0.5rem; padding: 0.75rem; box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05); margin-bottom: 1rem;">
+            <div style="display: flex; align-items: flex-start; margin-bottom: 0.5rem;">
+                <span style="flex-shrink: 0; width: 1.25rem; height: 1.25rem; background: #10b981; color: white; border-radius: 9999px; display: inline-flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; margin-right: 0.5rem;">
+                    Q
+                </span>
+                <p style="font-size: 0.875rem; font-weight: 500; color: #1f2937; margin: 0; flex: 1;">
+{question}
+                </p>
+            </div>
+            <div style="padding-left: 1.75rem;">
+                <p style="font-size: 0.875rem; color: #4b5563; line-height: 1.625; margin: 0; white-space: pre-wrap;">
+{answer}
+                </p>
+            </div>
+        </div>
+''')
+
+                html_parts.append(f'''
+<div style="background: linear-gradient(to bottom right, #d1fae5, #a7f3d0); border-radius: 0.5rem; padding: 1rem; border: 1px solid #86efac; margin-bottom: 1rem;">
+    <h3 style="font-size: 0.875rem; font-weight: 600; color: #1f2937; margin-bottom: 0.75rem; display: flex; align-items: center;">
+        <svg style="width: 1rem; height: 1rem; margin-right: 0.5rem; color: #059669;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        客户常见问题解答
+    </h3>
+    <div>
+{''.join(qa_items_html)}
+    </div>
+</div>
+''')
+                logger.info(f"💬 检测到财务规划问答，共 {len(financial_qa)} 条")
+
+            # 合并所有HTML部分
+            doc.summary = '\n'.join(html_parts)
+            logger.info(f"✅ 财务规划信息已转换为HTML并保存到summary字段")
+
+        doc.processing_stage = 'all_completed'
+        doc.status = 'completed'
+        doc.last_processed_at = timezone.now()
+        doc.save(update_fields=[
+            'table1', 'summary', 'processing_stage', 'status', 'last_processed_at',
+            'insured_name', 'insured_age', 'insured_gender',
+            'insurance_company', 'insurance_product',
+            'sum_assured', 'annual_premium', 'payment_years', 'total_premium', 'insurance_period'
+        ])
+
+        logger.info(f"✅ 表格数据已保存到table1字段")
+        logger.info(f"📊 表格名称: {table_data.get('table_name', 'N/A')}")
+        logger.info(f"📊 总行数: {table_data.get('row_count', 0)}")
+        logger.info(f"📊 数据条数: {len(table_data.get('data', []))}")
+        logger.info("=" * 80)
+
+        return {
+            'success': True,
+            'data': {
+                'table_name': table_data.get('table_name'),
+                'row_count': table_data.get('row_count'),
+                'data_count': len(table_data.get('data', []))
+            }
+        }
+
+    except Exception as e:
+        error_msg = f"直接提取表格数据时发生异常: {str(e)}"
+        logger.error(error_msg)
+        import traceback
+        logger.error(traceback.format_exc())
+
+        # 如果还有重试机会，触发重试
+        if self.request.retries < self.max_retries:
+            logger.warning(f"⏳ 将在60秒后重试（第{self.request.retries + 1}次重试）")
+            raise self.retry(exc=e)
+
+        # 重试次数用尽，标记为失败
+        try:
+            doc = PlanDocument.objects.get(id=document_id)
+            doc.processing_stage = 'error'
+            doc.error_message = error_msg
+            doc.status = 'failed'
+            doc.save(update_fields=['processing_stage', 'error_message', 'status'])
+        except:
+            pass
+
+        return {'success': False, 'error': error_msg}

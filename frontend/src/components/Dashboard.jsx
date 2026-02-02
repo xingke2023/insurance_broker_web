@@ -258,27 +258,25 @@ function Dashboard() {
   // 工具分类
   const toolCategories = [
     {
-      category: 'AI智能保险顾问系统',
+      category: '产品与计划书',
       tools: [
-        { name: 'AI保险顾问', icon: SparklesIcon, action: () => onNavigate('customer-cases'), color: 'from-blue-500 via-cyan-600 to-teal-700', show: true },
-        { name: '客户案例库', icon: DocumentTextIcon, action: () => onNavigate('customer-case-library'), color: 'from-indigo-500 via-purple-600 to-pink-700', show: true },
-        { name: '香港保险产品大全', icon: FolderIcon, action: () => onNavigate('insurance-products'), color: 'from-cyan-500 via-blue-600 to-indigo-700', show: true },
+        { name: '港险产品对比', icon: ChartBarIcon, action: () => onNavigate('company-comparison'), color: 'from-purple-500 via-purple-600 to-pink-700', show: true },
+        { name: '港险产品目录', icon: FolderIcon, action: () => onNavigate('insurance-products'), color: 'from-cyan-500 via-blue-600 to-indigo-700', show: true },
+        { name: '香港各大保险公司名单', icon: UserGroupIcon, action: () => onNavigate('insurance-companies'), color: 'from-emerald-500 via-teal-600 to-cyan-700', show: true },
       ]
     },
     {
-      category: 'AI保單與計畫書',
+      category: '港险顾问与港险案例分析',
+      tools: [
+        { name: '港险顾问', icon: SparklesIcon, action: () => onNavigate('customer-cases'), color: 'from-blue-500 via-cyan-600 to-teal-700', show: true },
+        { name: '港险案例汇编', icon: DocumentTextIcon, action: () => onNavigate('customer-case-library'), color: 'from-indigo-500 via-purple-600 to-pink-700', show: true },
+      ]
+    },
+    {
+      category: '港险销售赋能工具',
       tools: [
         { name: '计划书分析', icon: FolderIcon, action: () => onNavigate('plan-management'), color: 'from-blue-500 via-blue-600 to-indigo-700', show: true },
-        { name: '计划书对比', icon: DocumentTextIcon, action: () => onNavigate('plan-comparison'), color: 'from-blue-500 via-indigo-600 to-indigo-700', show: true },
-        { name: '计划书分步骤分析', icon: DocumentTextIcon, action: () => onNavigate('plan-analyzer-2'), color: 'from-indigo-500 via-purple-600 to-purple-700', show: false },
         { name: '计划书制作', icon: DocumentTextIcon, action: () => onNavigate('plan-builder'), color: 'from-purple-500 via-purple-600 to-pink-700', show: true },
-        { name: '主流产品收益数据统计表', icon: ChartBarIcon, action: () => onNavigate('company-comparison'), color: 'from-purple-500 via-purple-600 to-pink-700', show: true },
-        { name: '保险品种AI数据训练和分析管理', icon: SparklesIcon, action: () => window.open('http://43.153.64.160:8302/', '_blank'), color: 'from-indigo-500 via-purple-600 to-violet-700', show: true },
-      ]
-    },
-    {
-      category: 'AI办公与提效',
-      tools: [
         { name: '打造个人IP形象', icon: SparklesIcon, action: () => onNavigate('ip-image-generator'), color: 'from-pink-500 via-rose-600 to-rose-700', show: true },
         { name: '宣传图制作(基于个人IP)', icon: DocumentTextIcon, action: () => onNavigate('content-image-generator'), color: 'from-rose-500 via-red-600 to-red-700', show: true },
         { name: '视频制作', icon: SparklesIcon, action: () => onNavigate('video-projects'), color: 'from-red-500 via-orange-600 to-orange-700', show: true },
@@ -287,6 +285,7 @@ function Dashboard() {
         { name: '公众号写作及排版工具', icon: GlobeAltIcon, action: () => window.open('https://write.xingke888.com/editor', '_blank'), color: 'from-amber-500 via-yellow-600 to-yellow-700', show: true },
         { name: '产品海报分析工具', icon: SparklesIcon, action: () => onNavigate('poster-analyzer'), color: 'from-green-500 via-teal-600 to-teal-700', show: true },
         { name: 'PDF页脚擦除工具', icon: DocumentTextIcon, action: () => onNavigate('pdf-footer-remover'), color: 'from-teal-500 via-cyan-600 to-cyan-700', show: true },
+        { name: 'PDF工具箱 Pro', icon: DocumentTextIcon, action: () => onNavigate('pdf-footer-remover2'), color: 'from-purple-500 via-fuchsia-600 to-pink-700', show: true },
       ]
     }
   ];

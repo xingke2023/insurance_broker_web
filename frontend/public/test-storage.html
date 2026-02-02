@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>测试年度存储</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            max-width: 800px;
+            margin: 30px auto;
+            padding: 20px;
+            background: #f7fafc;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+        }
+        h1 {
+            color: #2d3748;
+            margin-top: 0;
+        }
+        .section {
+            margin: 20px 0;
+            padding: 15px;
+            background: #f7fafc;
+            border-radius: 8px;
+            border-left: 4px solid #4299e1;
+        }
+        input {
+            width: 100%;
+            padding: 10px;
+            border: 2px solid #cbd5e0;
+            border-radius: 6px;
+            font-size: 16px;
+            margin: 10px 0;
+        }
+        button {
+            background: #4299e1;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #3182ce;
+        }
+        .danger {
+            background: #f56565;
+        }
+        .danger:hover {
+            background: #e53e3e;
+        }
+        .success {
+            background: #48bb78;
+        }
+        .success:hover {
+            background: #38a169;
+        }
+        .current-value {
+            background: #2d3748;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            margin: 10px 0;
+            word-break: break-all;
+        }
+        .empty {
+            color: #a0aec0;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 年度存储测试工具</h1>
+
+        <div class="section">
+            <h3>📊 当前 localStorage 中的值</h3>
+            <div class="current-value" id="currentValue"></div>
+        </div>
+
+        <div class="section">
+            <h3>✏️ 设置新值</h3>
+            <input
+                type="text"
+                id="newValue"
+                placeholder="输入新的年度值，例如: 1-5,10,20"
+            />
+            <button class="success" onclick="saveValue()">保存到 localStorage</button>
+        </div>
+
+        <div class="section">
+            <h3>🧪 快速测试</h3>
+            <button onclick="testValue('1-5,10,20')">测试: 1-5,10,20</button>
+            <button onclick="testValue('1,2,3,4,5,10,20')">测试: 1,2,3,4,5,10,20</button>
+            <button onclick="testValue('1-10,20,30-40,100')">测试: 1-10,20,30-40,100</button>
+        </div>
+
+        <div class="section">
+            <h3>🗑️ 清除操作</h3>
+            <button class="danger" onclick="clearValue()">清除 customAgesInput</button>
+            <button class="danger" onclick="clearAll()">清除所有存储</button>
+        </div>
+
+        <div class="section">
+            <h3>📝 操作日志</h3>
+            <div id="log" style="max-height: 200px; overflow-y: auto;"></div>
+        </div>
+    </div>
+
+    <script>
+        function getCurrentValue() {
+            const value = localStorage.getItem('customAgesInput');
+            const display = document.getElementById('currentValue');
+            if (value) {
+                display.innerHTML = `<strong>customAgesInput:</strong> ${value}`;
+                display.classList.remove('empty');
+            } else {
+                display.innerHTML = '<span class="empty">未设置（将使用默认值）</span>';
+                display.classList.add('empty');
+            }
+            return value;
+        }
+
+        function saveValue() {
+            const input = document.getElementById('newValue');
+            const value = input.value.trim();
+            if (!value) {
+                alert('请输入年度值');
+                return;
+            }
+            localStorage.setItem('customAgesInput', value);
+            addLog(`✅ 已保存: ${value}`);
+            getCurrentValue();
+            input.value = '';
+        }
+
+        function testValue(value) {
+            localStorage.setItem('customAgesInput', value);
+            addLog(`🧪 测试值已设置: ${value}`);
+            getCurrentValue();
+        }
+
+        function clearValue() {
+            localStorage.removeItem('customAgesInput');
+            addLog('🗑️ 已清除 customAgesInput');
+            getCurrentValue();
+        }
+
+        function clearAll() {
+            const keys = ['customAgesInput', 'useCustomAges', 'visibleColumns'];
+            keys.forEach(key => localStorage.removeItem(key));
+            addLog('🗑️ 已清除所有存储');
+            getCurrentValue();
+        }
+
+        function addLog(message) {
+            const log = document.getElementById('log');
+            const time = new Date().toLocaleTimeString();
+            const entry = document.createElement('div');
+            entry.textContent = `[${time}] ${message}`;
+            entry.style.padding = '5px';
+            entry.style.borderBottom = '1px solid #e2e8f0';
+            log.insertBefore(entry, log.firstChild);
+        }
+
+        // 监听 storage 事件（其他标签页的修改）
+        window.addEventListener('storage', (e) => {
+            if (e.key === 'customAgesInput') {
+                addLog(`🔄 检测到其他标签页修改: ${e.newValue}`);
+                getCurrentValue();
+            }
+        });
+
+        // 页面加载时显示当前值
+        getCurrentValue();
+        addLog('🚀 页面已加载');
+    </script>
+</body>
+</html>

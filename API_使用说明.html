@@ -1,0 +1,709 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SpeedyCloud API 使用说明</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 10px;
+        }
+
+        @media (min-width: 768px) {
+            body {
+                padding: 20px;
+            }
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.2);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 20px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 1.8em;
+            margin-bottom: 8px;
+            word-break: break-word;
+        }
+
+        .header p {
+            font-size: 0.95em;
+            opacity: 0.9;
+        }
+
+        @media (min-width: 768px) {
+            .header {
+                padding: 40px;
+            }
+
+            .header h1 {
+                font-size: 2.5em;
+                margin-bottom: 10px;
+            }
+
+            .header p {
+                font-size: 1.1em;
+            }
+        }
+
+        .content {
+            padding: 15px;
+        }
+
+        @media (min-width: 768px) {
+            .content {
+                padding: 40px;
+            }
+        }
+
+        .section {
+            margin-bottom: 40px;
+        }
+
+        h2 {
+            color: #667eea;
+            font-size: 1.4em;
+            margin-bottom: 15px;
+            padding-bottom: 8px;
+            border-bottom: 3px solid #667eea;
+            word-break: break-word;
+        }
+
+        h3 {
+            color: #764ba2;
+            font-size: 1.1em;
+            margin: 15px 0 10px 0;
+            word-break: break-word;
+        }
+
+        @media (min-width: 768px) {
+            h2 {
+                font-size: 1.8em;
+                margin-bottom: 20px;
+                padding-bottom: 10px;
+            }
+
+            h3 {
+                font-size: 1.3em;
+                margin: 20px 0 10px 0;
+            }
+        }
+
+        .info-box {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 12px;
+            margin: 15px 0;
+            border-radius: 4px;
+            font-size: 0.9em;
+            word-break: break-word;
+        }
+
+        .info-box p {
+            margin-bottom: 8px;
+        }
+
+        .info-box code {
+            word-break: break-all;
+            font-size: 0.85em;
+        }
+
+        @media (min-width: 768px) {
+            .info-box {
+                padding: 20px;
+                margin: 20px 0;
+                font-size: 1em;
+            }
+
+            .info-box code {
+                font-size: 1em;
+            }
+        }
+
+        .info-box strong {
+            color: #667eea;
+        }
+
+        pre {
+            background: #282c34;
+            color: #abb2bf;
+            padding: 12px;
+            border-radius: 8px;
+            overflow-x: auto;
+            margin: 10px 0;
+            font-size: 0.75em;
+            line-height: 1.4;
+        }
+
+        code {
+            font-family: "Courier New", Courier, monospace;
+            word-break: break-all;
+        }
+
+        @media (min-width: 768px) {
+            pre {
+                padding: 20px;
+                margin: 15px 0;
+                font-size: 0.9em;
+            }
+        }
+
+        .code-header {
+            background: #1e2127;
+            color: #abb2bf;
+            padding: 10px 20px;
+            border-radius: 8px 8px 0 0;
+            font-weight: bold;
+            margin-bottom: -15px;
+            margin-top: 15px;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 15px 0;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            font-size: 0.85em;
+            display: block;
+            overflow-x: auto;
+        }
+
+        th {
+            background: #667eea;
+            color: white;
+            padding: 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 0.9em;
+        }
+
+        td {
+            padding: 8px;
+            border-bottom: 1px solid #e0e0e0;
+            word-break: break-word;
+        }
+
+        td code {
+            font-size: 0.85em;
+        }
+
+        @media (min-width: 768px) {
+            table {
+                margin: 20px 0;
+                font-size: 1em;
+                display: table;
+            }
+
+            th {
+                padding: 12px;
+                font-size: 1em;
+            }
+
+            td {
+                padding: 12px;
+            }
+
+            td code {
+                font-size: 1em;
+            }
+        }
+
+        tr:hover {
+            background: #f5f5f5;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 20px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+
+        @media (min-width: 768px) {
+            .badge {
+                padding: 4px 12px;
+                font-size: 0.85em;
+                margin-right: 10px;
+            }
+        }
+
+        .badge-success {
+            background: #10b981;
+            color: white;
+        }
+
+        .badge-info {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .badge-warning {
+            background: #f59e0b;
+            color: white;
+        }
+
+        .tip {
+            background: #e0f2fe;
+            border-left: 4px solid #3b82f6;
+            padding: 10px;
+            margin: 15px 0;
+            border-radius: 4px;
+            font-size: 0.9em;
+        }
+
+        @media (min-width: 768px) {
+            .tip {
+                padding: 15px;
+                margin: 20px 0;
+                font-size: 1em;
+            }
+        }
+
+        .tip strong {
+            color: #3b82f6;
+        }
+
+        .footer {
+            background: #f8f9fa;
+            padding: 15px 10px;
+            text-align: center;
+            color: #666;
+            font-size: 0.8em;
+            word-break: break-word;
+        }
+
+        .footer a {
+            word-break: break-all;
+        }
+
+        @media (min-width: 768px) {
+            .footer {
+                padding: 20px;
+                font-size: 0.9em;
+            }
+        }
+
+        .tab-container {
+            margin: 20px 0;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 5px;
+            margin-bottom: -1px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 8px 12px;
+            background: #f0f0f0;
+            border: none;
+            border-radius: 8px 8px 0 0;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            font-size: 0.85em;
+        }
+
+        @media (min-width: 768px) {
+            .tabs {
+                gap: 10px;
+            }
+
+            .tab {
+                padding: 10px 20px;
+                font-size: 1em;
+            }
+        }
+
+        .tab:hover {
+            background: #e0e0e0;
+        }
+
+        .tab.active {
+            background: #282c34;
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🚀 SpeedyCloud API</h1>
+            <p>Claude Sonnet 4.5 快速使用指南</p>
+        </div>
+
+        <div class="content">
+            <!-- 基本信息 -->
+            <div class="section">
+                <h2>📋 基本信息</h2>
+                <div class="info-box">
+                    <p><strong>API地址:</strong> <code>https://tokens.speedycloud.net</code></p>
+                    <p><strong>API密钥:</strong> <code>sk-QZnjoEWhDaEwWrCreXCXkc7m8Uuwq9gSFPE02rVPPgn43YwH</code></p>
+                    <p><strong>可用模型:</strong> <code>claude-sonnet-4-5-20250929</code></p>
+                    <p><strong>兼容标准:</strong> OpenAI Chat Completions API</p>
+                    <p><strong>测试状态:</strong> <span class="badge badge-success">✓ 已验证可用</span></p>
+                </div>
+            </div>
+
+            <!-- 快速开始 -->
+            <div class="section">
+                <h2>⚡ 快速开始</h2>
+
+                <div class="tab-container">
+                    <div class="tabs">
+                        <button class="tab active" onclick="showTab('python')">Python</button>
+                        <button class="tab" onclick="showTab('curl')">cURL</button>
+                        <button class="tab" onclick="showTab('javascript')">JavaScript</button>
+                    </div>
+
+                    <div id="python" class="tab-content active">
+                        <div class="code-header">Python</div>
+                        <pre><code>import requests
+
+api_key = "sk-QZnjoEWhDaEwWrCreXCXkc7m8Uuwq9gSFPE02rVPPgn43YwH"
+base_url = "https://tokens.speedycloud.net"
+
+headers = {
+    "Content-Type": "application/json",
+    "Authorization": f"Bearer {api_key}"
+}
+
+payload = {
+    "model": "claude-sonnet-4-5-20250929",
+    "messages": [
+        {"role": "user", "content": "你好，介绍一下你自己"}
+    ],
+    "max_tokens": 1000
+}
+
+response = requests.post(
+    f"{base_url}/v1/chat/completions",
+    headers=headers,
+    json=payload
+)
+
+result = response.json()
+print(result["choices"][0]["message"]["content"])</code></pre>
+                    </div>
+
+                    <div id="curl" class="tab-content">
+                        <div class="code-header">cURL</div>
+                        <pre><code>curl https://tokens.speedycloud.net/v1/chat/completions \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer sk-QZnjoEWhDaEwWrCreXCXkc7m8Uuwq9gSFPE02rVPPgn43YwH" \
+  -d '{
+    "model": "claude-sonnet-4-5-20250929",
+    "messages": [
+      {"role": "user", "content": "你好，介绍一下你自己"}
+    ],
+    "max_tokens": 1000
+  }'</code></pre>
+                    </div>
+
+                    <div id="javascript" class="tab-content">
+                        <div class="code-header">JavaScript/Node.js</div>
+                        <pre><code>const axios = require('axios');
+
+const apiKey = 'sk-QZnjoEWhDaEwWrCreXCXkc7m8Uuwq9gSFPE02rVPPgn43YwH';
+const baseUrl = 'https://tokens.speedycloud.net';
+
+async function callAPI() {
+  try {
+    const response = await axios.post(
+      `${baseUrl}/v1/chat/completions`,
+      {
+        model: 'claude-sonnet-4-5-20250929',
+        messages: [
+          { role: 'user', content: '你好，介绍一下你自己' }
+        ],
+        max_tokens: 1000
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        }
+      }
+    );
+
+    console.log(response.data.choices[0].message.content);
+  } catch (error) {
+    console.error('错误:', error.response?.data || error.message);
+  }
+}
+
+callAPI();</code></pre>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 请求参数 -->
+            <div class="section">
+                <h2>📝 请求参数</h2>
+
+                <h3>必需参数</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>参数</th>
+                            <th>类型</th>
+                            <th>说明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>model</code></td>
+                            <td>string</td>
+                            <td>模型名称: <code>claude-sonnet-4-5-20250929</code></td>
+                        </tr>
+                        <tr>
+                            <td><code>messages</code></td>
+                            <td>array</td>
+                            <td>对话消息数组</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>常用可选参数</h3>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>参数</th>
+                            <th>类型</th>
+                            <th>默认值</th>
+                            <th>说明</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><code>max_tokens</code></td>
+                            <td>integer</td>
+                            <td>-</td>
+                            <td>最大生成tokens数量</td>
+                        </tr>
+                        <tr>
+                            <td><code>temperature</code></td>
+                            <td>float</td>
+                            <td>1.0</td>
+                            <td>采样温度 (0.0-2.0)，越低越确定</td>
+                        </tr>
+                        <tr>
+                            <td><code>top_p</code></td>
+                            <td>float</td>
+                            <td>1.0</td>
+                            <td>核采样参数</td>
+                        </tr>
+                        <tr>
+                            <td><code>stream</code></td>
+                            <td>boolean</td>
+                            <td>false</td>
+                            <td>是否流式输出</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>Messages 格式</h3>
+                <div class="code-header">JSON</div>
+                <pre><code>{
+  "messages": [
+    {"role": "system", "content": "你是一个helpful助手"},
+    {"role": "user", "content": "用户的问题"},
+    {"role": "assistant", "content": "助手的回复"},
+    {"role": "user", "content": "继续对话..."}
+  ]
+}</code></pre>
+                <p><span class="badge badge-info">system</span> 设定AI行为
+                   <span class="badge badge-info">user</span> 用户消息
+                   <span class="badge badge-info">assistant</span> AI回复</p>
+            </div>
+
+            <!-- 响应格式 -->
+            <div class="section">
+                <h2>📤 响应格式</h2>
+                <div class="code-header">JSON Response</div>
+                <pre><code>{
+  "id": "msg_015smM6zW2JpURU9DgdwjpuK",
+  "model": "claude-sonnet-4-5-20250929",
+  "object": "chat.completion",
+  "created": 1769591717,
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "AI的回复内容"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 24,
+    "completion_tokens": 6,
+    "total_tokens": 30
+  }
+}</code></pre>
+
+                <div class="tip">
+                    <strong>💡 提示：</strong>
+                    <ul style="margin-left: 20px; margin-top: 10px;">
+                        <li><code>choices[0].message.content</code> - 获取AI回复内容</li>
+                        <li><code>finish_reason</code> - <code>stop</code>=正常结束, <code>length</code>=达到最大长度</li>
+                        <li><code>usage.total_tokens</code> - 总token消耗</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- 错误处理 -->
+            <div class="section">
+                <h2>⚠️ 常见错误码</h2>
+                <table>
+                    <thead>
+                        <tr>
+                            <th>状态码</th>
+                            <th>说明</th>
+                            <th>处理方式</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <tr>
+                            <td><span class="badge badge-warning">400</span></td>
+                            <td>请求参数错误</td>
+                            <td>检查请求格式和参数</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-warning">401</span></td>
+                            <td>认证失败</td>
+                            <td>检查API密钥是否正确</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-warning">429</span></td>
+                            <td>请求过于频繁</td>
+                            <td>添加重试机制和延迟</td>
+                        </tr>
+                        <tr>
+                            <td><span class="badge badge-warning">500</span></td>
+                            <td>服务器错误</td>
+                            <td>稍后重试</td>
+                        </tr>
+                    </tbody>
+                </table>
+
+                <h3>错误处理示例</h3>
+                <div class="code-header">Python</div>
+                <pre><code>try:
+    response = requests.post(url, headers=headers, json=payload, timeout=30)
+    response.raise_for_status()
+    result = response.json()
+except requests.exceptions.Timeout:
+    print("请求超时")
+except requests.exceptions.HTTPError as e:
+    print(f"HTTP错误: {e.response.status_code}")
+    print(f"错误详情: {e.response.text}")
+except Exception as e:
+    print(f"其他错误: {e}")</code></pre>
+            </div>
+
+            <!-- 最佳实践 -->
+            <div class="section">
+                <h2>✨ 最佳实践</h2>
+                <div class="info-box">
+                    <ol style="margin-left: 20px;">
+                        <li><strong>错误重试：</strong> 添加指数退避重试机制</li>
+                        <li><strong>超时设置：</strong> 建议设置30-60秒超时</li>
+                        <li><strong>Token控制：</strong> 合理设置 <code>max_tokens</code> 避免过度消耗</li>
+                        <li><strong>并发限制：</strong> 避免过高并发请求</li>
+                        <li><strong>安全存储：</strong> API密钥使用环境变量，不要硬编码</li>
+                    </ol>
+                </div>
+
+                <h3>环境变量配置</h3>
+                <div class="code-header">.env 文件</div>
+                <pre><code>SPEEDYCLOUD_API_KEY=sk-QZnjoEWhDaEwWrCreXCXkc7m8Uuwq9gSFPE02rVPPgn43YwH
+SPEEDYCLOUD_BASE_URL=https://tokens.speedycloud.net
+SPEEDYCLOUD_MODEL=claude-sonnet-4-5-20250929</code></pre>
+
+                <div class="code-header">Python 读取</div>
+                <pre><code>import os
+from dotenv import load_dotenv
+
+load_dotenv()
+
+api_key = os.getenv('SPEEDYCLOUD_API_KEY')
+base_url = os.getenv('SPEEDYCLOUD_BASE_URL')
+model = os.getenv('SPEEDYCLOUD_MODEL')</code></pre>
+            </div>
+
+            <!-- 测试工具 -->
+            <div class="section">
+                <h2>🧪 测试工具</h2>
+                <p>使用项目中的测试脚本验证API连接：</p>
+                <div class="code-header">Bash</div>
+                <pre><code>python3 test_api.py</code></pre>
+                <div class="tip">
+                    <strong>✓ 测试结果：</strong> API已验证可用，响应正常，Token消耗: 30 tokens
+                </div>
+            </div>
+        </div>
+
+        <div class="footer">
+            <p>📚 本API兼容OpenAI格式 | 更多信息参考 <a href="https://platform.openai.com/docs/api-reference/chat" target="_blank">OpenAI API文档</a></p>
+            <p style="margin-top: 10px;">生成时间: 2026-01-28</p>
+        </div>
+    </div>
+
+    <script>
+        function showTab(tabName) {
+            // 隐藏所有标签内容
+            var contents = document.getElementsByClassName('tab-content');
+            for (var i = 0; i < contents.length; i++) {
+                contents[i].classList.remove('active');
+            }
+
+            // 移除所有标签的active状态
+            var tabs = document.getElementsByClassName('tab');
+            for (var i = 0; i < tabs.length; i++) {
+                tabs[i].classList.remove('active');
+            }
+
+            // 显示选中的标签内容
+            document.getElementById(tabName).classList.add('active');
+
+            // 设置选中的标签为active
+            event.target.classList.add('active');
+        }
+    </script>
+</body>
+</html>

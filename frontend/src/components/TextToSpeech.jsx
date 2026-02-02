@@ -751,7 +751,7 @@ function TextToSpeech() {
             {personalVoices.length > 0 ? (
               <>
                 <div className="bg-white rounded-xl shadow-sm p-6">
-                  <h3 className="text-lg font-semibold text-gray-900 mb-4">我的个人语音</h3>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">我的个人语音样本</h3>
                   <div className="space-y-2">
                     {personalVoices.map((voice) => (
                       <div
@@ -779,7 +779,7 @@ function TextToSpeech() {
                 <div className="bg-white rounded-xl shadow-sm p-6 space-y-4">
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      选择个人语音
+                      选择个人语音样本
                     </label>
                     <select
                       value={selectedPersonalVoice}
@@ -796,7 +796,7 @@ function TextToSpeech() {
 
                   <div>
                     <label className="block text-sm font-semibold text-gray-700 mb-2">
-                      输入文本内容
+                      输入想要生成的个人语音文本内容
                     </label>
                     <textarea
                       value={personalText}

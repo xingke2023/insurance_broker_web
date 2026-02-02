@@ -83,14 +83,22 @@ function PlanBuilder() {
                 ? "w-20 h-14 md:w-36 md:h-20"
                 : "w-32 h-20 md:w-52 md:h-32";
 
+              // 只有宏利可以点击
+              const isEnabled = company.code === 'manulife';
+
               return (
               <button
                 key={company.code}
-                onClick={() => onNavigate(`insurance-company/${company.code}`)}
-                className="group bg-white/95 backdrop-blur-xl border-2 border-white/80 rounded-lg md:rounded-xl py-0.5 px-2 md:py-1 md:px-3 hover:border-indigo-300 hover:shadow-[0_16px_48px_rgba(99,102,241,0.35),0_8px_20px_rgba(0,0,0,0.15),0_4px_8px_rgba(0,0,0,0.1)] hover:scale-[1.03] hover:-translate-y-1 transition-all duration-300 relative overflow-hidden aspect-square flex flex-col items-center justify-center shadow-[0_10px_35px_rgba(0,0,0,0.15),0_4px_12px_rgba(0,0,0,0.1),0_2px_4px_rgba(0,0,0,0.08)]"
+                onClick={() => isEnabled && onNavigate(`insurance-company/${company.code}`)}
+                disabled={!isEnabled}
+                className={`group bg-white/95 backdrop-blur-xl border-2 border-white/80 rounded-lg md:rounded-xl py-0.5 px-2 md:py-1 md:px-3 transition-all duration-300 relative overflow-hidden aspect-square flex flex-col items-center justify-center shadow-[0_10px_35px_rgba(0,0,0,0.15),0_4px_12px_rgba(0,0,0,0.1),0_2px_4px_rgba(0,0,0,0.08)] ${
+                  isEnabled
+                    ? 'hover:border-indigo-300 hover:shadow-[0_16px_48px_rgba(99,102,241,0.35),0_8px_20px_rgba(0,0,0,0.15),0_4px_8px_rgba(0,0,0,0.1)] hover:scale-[1.03] hover:-translate-y-1 cursor-pointer'
+                    : 'opacity-50 cursor-not-allowed grayscale'
+                }`}
               >
                 {/* 渐变背景 */}
-                <div className={`absolute inset-0 bg-gradient-to-br ${company.color_gradient} opacity-0 group-hover:opacity-10 transition-opacity duration-300`}></div>
+                <div className={`absolute inset-0 bg-gradient-to-br ${company.color_gradient} opacity-0 ${isEnabled ? 'group-hover:opacity-10' : ''} transition-opacity duration-300`}></div>
 
                 {/* 内容 */}
                 <div className="relative z-10 flex flex-col items-center justify-center w-full h-full">

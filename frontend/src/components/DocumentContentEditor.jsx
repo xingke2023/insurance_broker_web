@@ -563,11 +563,10 @@ function DocumentContentEditor() {
           {isPlanSummaryOpen && (
             <div className="mt-3">
               {planSummary ? (
-                <div className="bg-orange-50 rounded-lg p-4 border border-orange-200">
-                  <ReactMarkdown className="text-sm text-gray-800 prose prose-sm max-w-none">
-                    {planSummary}
-                  </ReactMarkdown>
-                </div>
+                <div
+                  className="prose prose-sm max-w-none"
+                  dangerouslySetInnerHTML={{ __html: planSummary }}
+                />
               ) : (
                 <div className="text-center py-8 text-gray-500">
                   <FileText className="w-12 h-12 mx-auto mb-3 text-gray-300" />
@@ -589,7 +588,7 @@ function DocumentContentEditor() {
               <Table className="w-4 h-4 text-blue-600" />
               <h3 className="text-sm sm:text-base font-semibold text-gray-800">基本计划退保价值表</h3>
               <span className="text-sm text-gray-500">
-                {table1Data?.years?.length > 0 ? `(${table1Data.years.length} 条记录)` : '(暂无数据)'}
+                {table1Data?.years?.length > 0 ? `(${table1Data.years.length} 条记录)` : '(暂不提供)'}
               </span>
             </div>
             {isTable1Open ? (
@@ -992,9 +991,9 @@ function DocumentContentEditor() {
           >
             <div className="flex items-center space-x-2">
               <Table className="w-4 h-4 text-purple-600" />
-              <h3 className="text-sm sm:text-base font-semibold text-gray-800">无忧选退保价值表</h3>
+              <h3 className="text-sm sm:text-base font-semibold text-gray-800">提取后退保价值表</h3>
               <span className="text-sm text-gray-500">
-                {table2Data?.years?.length > 0 ? `(${table2Data.years.length} 条记录)` : '(暂无数据)'}
+                {table2Data?.years?.length > 0 ? `(${table2Data.years.length} 条记录)` : '(暂不提供)'}
               </span>
             </div>
             {isTable2Open ? (

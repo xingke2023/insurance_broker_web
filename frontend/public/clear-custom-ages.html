@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>清除自定义年度设置</title>
+    <style>
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            max-width: 600px;
+            margin: 50px auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            padding: 30px;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 20px;
+        }
+        .info {
+            background: #f0f9ff;
+            border-left: 4px solid #3b82f6;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .success {
+            background: #f0fdf4;
+            border-left: 4px solid #22c55e;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+            display: none;
+        }
+        button {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            font-size: 16px;
+            cursor: pointer;
+            margin-top: 20px;
+            transition: transform 0.2s;
+        }
+        button:hover {
+            transform: translateY(-2px);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        .code {
+            background: #1e293b;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Courier New', monospace;
+            margin: 15px 0;
+            overflow-x: auto;
+        }
+        .current-value {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+        .new-value {
+            background: #dcfce7;
+            border-left: 4px solid #16a34a;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 清除自定义年度设置</h1>
+
+        <div class="info">
+            <strong>当前localStorage中的值：</strong>
+            <div class="code" id="currentValue">检查中...</div>
+        </div>
+
+        <div class="current-value">
+            <strong>⚠️ 当前问题：</strong>
+            <p>您的浏览器保存了旧的自定义年度设置，所以即使代码更新了，仍然显示旧值。</p>
+        </div>
+
+        <div class="new-value">
+            <strong>✅ 新的默认值：</strong>
+            <div class="code">1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,30,35,40,45,50,60,70,80,90,100</div>
+            <p><strong>共35个年度</strong>：1-25年连续，然后30,35,40,45,50,60,70,80,90,100</p>
+        </div>
+
+        <button onclick="clearSettings()">🗑️ 清除设置并使用新默认值</button>
+
+        <div class="success" id="successMessage">
+            <strong>✅ 清除成功！</strong>
+            <p>3秒后自动跳转到产品对比页面...</p>
+        </div>
+
+        <div class="info" style="margin-top: 30px;">
+            <strong>💡 说明：</strong>
+            <ul>
+                <li>点击按钮将清除浏览器中保存的旧设置</li>
+                <li>清除后会自动使用新的默认年度设置</li>
+                <li>下次访问时会看到新的35个年度</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // 显示当前值
+        function displayCurrentValue() {
+            const saved = localStorage.getItem('customAgesInput');
+            const currentValueDiv = document.getElementById('currentValue');
+            if (saved) {
+                currentValueDiv.textContent = saved;
+                currentValueDiv.style.color = '#ef4444';
+            } else {
+                currentValueDiv.textContent = '(未设置，将使用默认值)';
+                currentValueDiv.style.color = '#22c55e';
+            }
+        }
+
+        // 清除设置
+        function clearSettings() {
+            // 清除自定义年度输入
+            localStorage.removeItem('customAgesInput');
+
+            // 显示成功消息
+            document.getElementById('successMessage').style.display = 'block';
+
+            // 更新显示
+            displayCurrentValue();
+
+            // 3秒后跳转到产品对比页面
+            setTimeout(() => {
+                window.location.href = '/company-comparison';
+            }, 3000);
+        }
+
+        // 页面加载时显示当前值
+        displayCurrentValue();
+    </script>
+</body>
+</html>

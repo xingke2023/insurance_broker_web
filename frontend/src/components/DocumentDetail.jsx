@@ -15,9 +15,9 @@ function DocumentDetail() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
-  // Collapse states - 默认全部折叠
-  const [isBasicInfoOpen, setIsBasicInfoOpen] = useState(false);
-  const [isSummaryOpen, setIsSummaryOpen] = useState(false);
+  // Collapse states - 基本信息默认展开，其他折叠
+  const [isBasicInfoOpen, setIsBasicInfoOpen] = useState(true);
+  const [isSummaryOpen, setIsSummaryOpen] = useState(true);
   const [isTableSummaryOpen, setIsTableSummaryOpen] = useState(false); // 表格分析基本情况折叠状态
   const [isTable1Open, setIsTable1Open] = useState(false); // 新增：保单价值表折叠状态
   const [isTableOpen, setIsTableOpen] = useState(false);
@@ -982,33 +982,12 @@ function DocumentDetail() {
           {isSummaryOpen && (
             <>
               {document.summary && typeof document.summary === 'string' && document.summary.trim().length > 0 ? (
-                <div className="mt-3 prose prose-sm max-w-none">
-                  <ReactMarkdown
-                    rehypePlugins={[rehypeRaw]}
-                    className="text-xs sm:text-sm text-gray-600 leading-relaxed"
-                    components={{
-                      h1: ({node, ...props}) => <h1 className="text-base sm:text-lg font-bold text-gray-900 mt-4 mb-3" {...props} />,
-                      h2: ({node, ...props}) => <h2 className="text-sm sm:text-base font-semibold text-gray-800 mt-4 mb-2" {...props} />,
-                      h3: ({node, ...props}) => <h3 className="text-xs sm:text-sm font-medium text-gray-700 mt-3 mb-1" {...props} />,
-                      p: ({node, ...props}) => <p className="text-xs sm:text-sm text-gray-600 mb-2 leading-relaxed" {...props} />,
-                      ul: ({node, ...props}) => <ul className="list-disc list-inside space-y-1 mb-2" {...props} />,
-                      ol: ({node, ...props}) => <ol className="list-decimal list-inside space-y-1 mb-2" {...props} />,
-                      li: ({node, ...props}) => <li className="text-xs sm:text-sm text-gray-600" {...props} />,
-                      strong: ({node, ...props}) => <strong className="font-semibold text-gray-800" {...props} />,
-                      table: ({node, ...props}) => (
-                        <div className="overflow-x-auto my-4">
-                          <table className="min-w-full border-collapse border border-gray-300" {...props} />
-                        </div>
-                      ),
-                      thead: ({node, ...props}) => <thead className="bg-gray-100" {...props} />,
-                      tbody: ({node, ...props}) => <tbody {...props} />,
-                      tr: ({node, ...props}) => <tr className="border-b border-gray-300" {...props} />,
-                      th: ({node, ...props}) => <th className="border border-gray-300 px-2 sm:px-4 py-1 sm:py-2 text-left text-xs sm:text-sm font-semibold text-gray-700" {...props} />,
-                      td: ({node, ...props}) => <td className="border border-gray-300 px-2 sm:px-4 py-1 sm:py-2 text-xs sm:text-sm text-gray-600" {...props} />,
-                    }}
-                  >
-                    {document.summary}
-                  </ReactMarkdown>
+                <div className="mt-3">
+                  {/* 直接渲染HTML内容 */}
+                  <div
+                    className="prose prose-sm max-w-none"
+                    dangerouslySetInnerHTML={{ __html: document.summary }}
+                  />
                 </div>
               ) : document.processing_stage === 'extracting_summary' || extractingSummary ? (
                 <div className="mt-3 text-center py-6 text-gray-500">
@@ -1103,7 +1082,7 @@ function DocumentDetail() {
               onClick={() => setIsTable1Open(!isTable1Open)}
             >
               <Table className="w-4 h-4 text-indigo-500" />
-              <h2 className="text-sm sm:text-base font-semibold text-gray-800">保单价值表</h2>
+              <h2 className="text-sm sm:text-base font-semibold text-gray-800">保单现金价值表</h2>
               {document.table1 && document.table1.data && document.table1.data.length > 0 && (
                 <span className="text-xs text-gray-500">
                   ({document.table1.table_name || '退保价值表'} - {document.table1.row_count || document.table1.data.length} 行)
@@ -1169,7 +1148,8 @@ function DocumentDetail() {
                       </tr>
                     </thead>
                     <tbody className="bg-white">
-                      {document.table1.data.map((row, rowIdx) => (
+                      {/* 跳过data[0]（英文字段名），从data[1]开始显示真实数据 */}
+                      {document.table1.data.slice(1).map((row, rowIdx) => (
                         <tr key={rowIdx} className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
                           {/* 支持数组格式和对象格式 */}
                           {Array.isArray(row)
@@ -1318,9 +1298,9 @@ function DocumentDetail() {
                 e.stopPropagation();
                 handleReOCR();
               }}
-              disabled={reOCRing || !document.file_path}
+              disabled={true}
               className="ml-2 flex items-center space-x-1 px-2 sm:px-3 py-1 sm:py-1.5 bg-gradient-to-r from-orange-500 to-red-600 text-white text-xs rounded-lg hover:from-orange-600 hover:to-red-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-sm"
-              title={!document.file_path ? '无PDF文件，无法重新OCR' : '重新OCR识别'}
+              title="重新OCR功能已禁用"
             >
               {reOCRing ? (
                 <>
@@ -1350,8 +1330,7 @@ function DocumentDetail() {
               </div>
             ) : (
               <div className="mt-2 text-center py-6 text-gray-500">
-                <Loader2 className="w-5 h-5 animate-spin mx-auto mb-2" />
-                <p className="text-xs">OCR内容解析中...</p>
+                <p className="text-xs">暂不提供</p>
               </div>
             )
           )}

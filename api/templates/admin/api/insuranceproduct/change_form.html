@@ -1,0 +1,59 @@
+{% extends "admin/change_form.html" %}
+
+{% block after_field_sets %}
+{{ block.super }}
+
+<script>
+(function() {
+    // 在PDF文件选择器后面添加"仅识别并保存"按钮
+    var pdfField = document.getElementById('id_plan_pdf');
+    if (pdfField) {
+        var ocrButton = document.createElement('button');
+        ocrButton.type = 'submit';
+        ocrButton.name = '_ocr_only';
+        ocrButton.className = 'button';
+        ocrButton.style.cssText = 'background: #e67e22; color: white; margin-left: 10px; padding: 8px 16px; border: none; border-radius: 4px; cursor: pointer; font-weight: bold;';
+        ocrButton.innerHTML = '🔍 识别并保存';
+        ocrButton.title = '完整更新：Base64编码 + OCR识别计划书详情';
+
+        ocrButton.onclick = function() {
+            var ocrOnlyField = document.getElementById('id_ocr_only');
+            if (ocrOnlyField) {
+                ocrOnlyField.value = 'true';
+            }
+            return true;
+        };
+
+        // 插入到PDF文件选择器的父容器中
+        var container = pdfField.parentElement;
+        container.appendChild(ocrButton);
+
+        // 添加提示文字
+        var helpText = document.createElement('div');
+        helpText.style.cssText = 'margin-top: 8px; padding: 8px; background: #e8f4f8; border-left: 4px solid #2196F3; border-radius: 4px; font-size: 13px;';
+        helpText.innerHTML = '<strong>💡 提示：</strong><br>' +
+                           '• 选择PDF文件后，点击"<strong>🔍 仅识别并保存</strong>"按钮可快速处理<br>' +
+                           '• 功能：完整更新 <strong>Base64编码</strong> + <strong>计划书详情</strong>（OCR识别）<br>' +
+                           '• 也可以使用页面底部的"保存"按钮，效果相同';
+        container.appendChild(helpText);
+    }
+
+    // 监听表单提交，重置ocr_only字段
+    var form = document.querySelector('form');
+    if (form) {
+        form.addEventListener('submit', function(e) {
+            var clickedButton = e.submitter;
+            var ocrOnlyField = document.getElementById('id_ocr_only');
+
+            if (!ocrOnlyField) return;
+
+            if (clickedButton && clickedButton.name === '_ocr_only') {
+                ocrOnlyField.value = 'true';
+            } else {
+                ocrOnlyField.value = 'false';
+            }
+        });
+    }
+})();
+</script>
+{% endblock %}

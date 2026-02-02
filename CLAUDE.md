@@ -6,32 +6,269 @@
 
 ## 核心功能
 
-### 1. OCR文档识别与保存
-- 上传保险计划书文档（PDF）
-- 使用Google Gemini 3 Flash Preview进行OCR识别
-- 保存识别结果到数据库（Markdown格式 + HTML表格）
-- 实现位置：`api/ocr_views.py`, `api/gemini_service.py`
+### 1. 计划书智能分析（Plan Analyzer）⭐ 核心功能
 
-### 2. AI智能提取
-- 提取受保人信息（姓名、年龄、性别）
-- 提取保险产品信息（产品名、保险公司）
-- 提取保费信息（年缴保费、缴费年数、总保费）
-- 提取保险期限和基本保额
-- AI服务：`api/qwen_service.py`
+**页面路径**：`/plan-analyzer`
+**前端组件**：`frontend/src/components/PlanAnalyzer.jsx`
+**后端 API**：`POST /api/ocr/upload-async/`
 
-### 3. 年度价值表分析
-- 使用Gemini Flash AI分析保单年度价值表
-- 提取每年的保证现金价值、非保证现金价值
-- 存储多年度数据用于对比分析
-- 实现位置：`api/gemini_analysis_service.py`
+#### 工作流程（2026年1月最新版本）
 
-### 4. 用户认证系统
+##### 1️⃣ 前端：上传 PDF
+
+```javascript
+// 位置：PlanAnalyzer.jsx:95
+const handleFileSelect = async (file) => {
+  // 1. 自动检测 PDF 是否包含表格（检查前6页）
+  const hasTable = await detectTableInPDF(file);
+
+  // 2. 检测特征：
+  //    - 数字比例 > 15%
+  //    - 包含关键词：年度、保单年度、退保金、现金价值等
+
+  // 3. 文件准备就绪，等待点击"开始分析"
+  setUploadedFile(file);
+};
+```
+
+##### 2️⃣ 前端：点击"开始分析"
+
+```javascript
+// 位置：PlanAnalyzer.jsx:534
+const handleStartParsing = async () => {
+  // 1. 上传文件到后端
+  const response = await authFetch('/api/ocr/upload-async/', {
+    method: 'POST',
+    body: formData  // 包含 file 和 user_id
+  });
+
+  // 2. 获取文档 ID
+  const documentId = data.document_id;
+
+  // 3. 添加到后台任务列表（localStorage 持久化）
+  addBackgroundTask({
+    task_id: documentId,
+    file_name: uploadedFile.name,
+    state: 'running',
+    progress: 10,
+    processing_stage: 'ocr_pending'
+  });
+
+  // 4. 开始轮询状态（每 3 秒）
+  startPollingStatus(documentId);
+
+  // 5. 提示用户可离开页面
+  alert('文件已上传成功！OCR识别正在后台处理，您可以安全地离开此页面。');
+};
+```
+
+##### 3️⃣ 后端：接收上传并创建任务
+
+```python
+# 位置：api/ocr_views.py:1501
+@api_view(['POST'])
+@permission_classes([IsAuthenticated, IsMemberActive])
+def upload_pdf_async(request):
+    # 1. 验证会员状态
+    # 2. 保存 PDF 文件到 media/plan_documents/
+    plan_doc = PlanDocument.objects.create(
+        file_name=uploaded_file.name,
+        file_path=uploaded_file,  # 自动生成唯一文件名
+        status='processing',
+        processing_stage='ocr_pending'
+    )
+
+    # ⭐ 关键：启动单一 Celery 任务（不再是6步任务链）
+    from .tasks import extract_table_data_direct_task
+    extract_table_data_direct_task.apply_async(
+        args=[plan_doc.id],
+        countdown=1  # 1秒后执行
+    )
+
+    # 3. 立即返回文档 ID
+    return Response({
+        'status': 'success',
+        'document_id': plan_doc.id
+    })
+```
+
+##### 4️⃣ Celery 任务：一步直接提取所有数据
+
+```python
+# 位置：api/tasks.py:1607
+@shared_task(bind=True, max_retries=2, default_retry_delay=60)
+def extract_table_data_direct_task(self, document_id):
+    """
+    🆕 新流程：直接使用 Gemini 从 PDF 提取所有数据
+    （绕过传统的 OCR → 提取表格源代码 → 分析表格的多步流程）
+    """
+
+    # 1. 更新状态
+    doc.processing_stage = 'extracting_table1'
+    doc.save()
+
+    # 2. 调用 Gemini API 直接分析 PDF
+    from .gemini_service import extract_table_data_from_pdf
+    result = extract_table_data_from_pdf(pdf_path)
+
+    # 返回格式：
+    # {
+    #   'success': True,
+    #   'table_data': {
+    #     'policy_info': {...},           # 保单信息
+    #     'surrender_value_table': [...], # 退保价值表
+    #     'death_benefit_table': [...]    # 身故赔偿表
+    #   },
+    #   'financial_planning_summary': '...',  # 财务规划摘要
+    #   'financial_planning_qa': [...]        # 常见问题
+    # }
+
+    # 3. 保存到 table1 字段（JSON 格式）
+    doc.table1 = json.dumps(result['table_data'])
+
+    # 4. 自动提取并更新数据库字段
+    policy_info = result['table_data']['policy_info']
+    doc.insured_name = policy_info.get('姓名')
+    doc.insured_age = policy_info.get('年龄')
+    doc.insured_gender = policy_info.get('性别')
+    doc.insurance_company = policy_info.get('保险公司名称')
+    doc.insurance_product = policy_info.get('产品名称')
+    doc.sum_assured = policy_info.get('保额')
+    doc.annual_premium = policy_info.get('年缴保费')
+    doc.payment_years = policy_info.get('缴费年数')
+    doc.total_premium = policy_info.get('总保费')
+    doc.insurance_period = policy_info.get('保险期限')
+
+    # 5. 生成并保存财务规划摘要（HTML 格式）
+    doc.summary = generate_html_summary(result)
+
+    # 6. 标记完成
+    doc.processing_stage = 'all_completed'
+    doc.status = 'completed'
+    doc.save()
+```
+
+##### 5️⃣ 前端：轮询进度
+
+```javascript
+// 位置：PlanAnalyzer.jsx:610
+const startPollingStatus = (documentId) => {
+  const pollInterval = setInterval(async () => {
+    // 每 3 秒查询一次
+    const response = await fetch(`/api/ocr/documents/${documentId}/status/`);
+    const { processing_stage, progress_percentage } = response.data;
+
+    // 更新后台任务进度
+    updateBackgroundTask(documentId, {
+      progress: progress_percentage,
+      processing_stage: processing_stage,
+      state: processing_stage === 'all_completed' ? 'finished' : 'running'
+    });
+
+    // 完成后停止轮询
+    if (processing_stage === 'all_completed' || processing_stage === 'error') {
+      clearInterval(pollInterval);
+    }
+  }, 3000);
+
+  // 10 分钟后自动停止轮询
+  setTimeout(() => clearInterval(pollInterval), 600000);
+};
+```
+
+#### 处理阶段（processing_stage）
+
+| 阶段 | 说明 | 进度 |
+|------|------|------|
+| `ocr_pending` | 等待处理 | 10% |
+| `extracting_table1` | Gemini 正在分析 PDF | 50% |
+| `all_completed` | 分析完成 ✅ | 100% |
+| `error` | 处理失败 ❌ | - |
+
+#### 数据存储结构
+
+**table1 字段**（JSON 格式）：
+```json
+{
+  "policy_info": {
+    "姓名": "张三",
+    "年龄": 30,
+    "性别": "男",
+    "保险公司名称": "友邦保险",
+    "产品名称": "盛世·御享",
+    "保额": 500000,
+    "年缴保费": 50000,
+    "缴费年数": 5,
+    "总保费": 250000,
+    "保险期限": "终身"
+  },
+  "surrender_value_table": [
+    {"保单年度": 1, "保证现金价值": 1000, "非保证现金价值": 500, "总现金价值": 1500},
+    {"保单年度": 2, "保证现金价值": 2000, "非保证现金价值": 1000, "总现金价值": 3000}
+  ],
+  "death_benefit_table": [...]
+}
+```
+
+**数据库字段**（自动从 policy_info 提取）：
+- `insured_name` - 受保人姓名
+- `insured_age` - 受保人年龄
+- `insured_gender` - 受保人性别
+- `insurance_company` - 保险公司
+- `insurance_product` - 产品名称
+- `sum_assured` - 保额
+- `annual_premium` - 年缴保费
+- `payment_years` - 缴费年数
+- `total_premium` - 总保费
+- `insurance_period` - 保险期限
+
+**summary 字段**（HTML 格式）：
+财务规划摘要和常见问题解答
+
+#### 核心特性
+
+- ✅ **一步到位**：单一任务直接提取所有数据（不再是 6 步任务链）
+- ✅ **异步处理**：上传后可立即离开页面，后台继续处理
+- ✅ **智能检测**：自动识别 PDF 是否包含表格
+- ✅ **实时进度**：多任务进度条显示（每个任务独立进度）
+- ✅ **后台任务列表**：右上角显示所有正在处理/已完成的任务
+- ✅ **持久化存储**：任务保存到 localStorage，刷新不丢失
+- ✅ **自动重试**：失败自动重试 2 次（间隔 60 秒）
+- ✅ **双重存储**：JSON + 数据库字段，便于查询和展示
+
+#### 与旧流程的对比
+
+| 对比项 | 旧流程（已废弃） | **新流程（当前）** |
+|--------|-----------------|------------------|
+| **任务数量** | 6 个任务链 | **1 个任务** ⚡ |
+| **处理方式** | OCR → 提取表格源代码 → 分析 | **Gemini 直接分析 PDF** |
+| **中间步骤** | content → tablecontent → tablesummary | **直接到 table1** |
+| **数据存储** | 多个字段分散 | **table1 JSON + 数据库字段** |
+| **处理时间** | 较长（多步骤串行） | **更快（一步完成）** |
+| **依赖服务** | PaddleLayout OCR + Gemini | **仅 Gemini** |
+
+#### 技术实现
+
+- **AI 引擎**：Google Gemini 3 Flash Preview（multimodal，直接处理 PDF）
+- **任务队列**：Celery + Redis
+- **状态管理**：PlanDocument.processing_stage 字段
+- **进度跟踪**：前端轮询（每 3 秒）+ 后端状态更新
+- **数据格式**：JSON（table1）+ 结构化数据库字段
+
+#### 相关文件
+
+- `frontend/src/components/PlanAnalyzer.jsx` - 前端主组件
+- `api/ocr_views.py` - 上传和状态查询 API
+- `api/tasks.py:1607` - Celery 任务定义（extract_table_data_direct_task）
+- `api/gemini_service.py` - Gemini API 封装（extract_table_data_from_pdf）
+
+### 2. 用户认证系统
 - JWT token认证
 - 用户注册/登录功能
 - 多语言支持（中文/英文）
 - 认证视图：`api/auth_views.py`
 
-### 5. 文档管理
+### 3. 文档管理
 - 查看已保存的文档列表
 - 查看文档详情和分析结果
 - **下载原始PDF文件**（绿色下载按钮）
@@ -64,7 +301,46 @@
 - 自动触发后续表格提取和分析任务
 - API路径：`POST /api/ocr/documents/{id}/re-ocr/`
 
-### 6. 海报分析工具
+### 4. PDF 工具箱 Pro（PDF Footer Remover 2）
+
+**页面路径**：`/pdf-footer-remover2`
+**前端组件**：`frontend/src/components/PDFFooterRemover2.jsx`
+**后端 API**：`api/pdf_views.py`
+
+#### 功能模块
+
+1. **表格提取（两种方式）**
+   - **快速提取**（PyMuPDF）：适合有边框表格，速度快
+   - **精确提取**（pdfplumber）：适合复杂表格、无边框表格，准确度高
+   - 支持三种导出格式：CSV（Excel）、TXT（制表符）、Markdown
+
+2. **全文提取**
+   - 使用 pdfplumber 提取所有文字
+   - 显示各页统计信息
+   - 支持下载为 TXT 文件
+
+3. **页脚擦除**
+   - 6个擦除区域：页眉通栏/左上/右上、页脚通栏/左下/右下
+   - 支持自定义页码范围
+   - 自动添加页码文字
+   - PDF 预览功能
+
+#### 表格导出格式对比
+
+| 格式 | 特点 | 适用场景 |
+|------|------|---------|
+| CSV | UTF-8 BOM，双引号包裹单元格 | Excel 数据分析 |
+| TXT | 制表符分隔，包含元数据 | 文本编辑器 |
+| Markdown | 表格语法，自动识别表头 | 文档、笔记 |
+
+#### API 端点
+
+- `POST /api/pdf/extract-tables` - PyMuPDF 表格提取
+- `POST /api/pdf/extract-tables-plumber` - pdfplumber 表格提取
+- `POST /api/pdf/extract-text` - 全文提取
+- `POST /api/pdf/remove-footer` - 页脚擦除
+
+### 5. 海报分析工具
 - 上传海报图片（JPG、PNG、WebP、GIF，最大10MB）
 - AI智能分析海报的视觉设计、内容解读、营销要素
 - 提供8种预设分析模板：产品分析、客户视角分析、朋友圈文案、全面分析、文案提取、设计分析、营销效果评估、竞品对比
@@ -126,6 +402,14 @@ response = client.models.generate_content(
 - 最大10MB
 - 支持格式：image/jpeg, image/jpg, image/png, image/webp, image/gif
 - 前后端双重验证
+
+### 6. Playwright产品爬虫工具（Gemini智能增强版）
+- **智能模式**：使用Gemini 3 Flash Preview自动分析和筛选高质量产品资料，过滤无关链接（公司新闻、隐私政策等），自动标记核心资料并生成内容描述
+- **基础模式**：使用DOM直接提取所有PDF/视频链接（添加`--no-gemini`参数）
+- 智能保存到`product_promotions`表（自动检查重复，支持新增/更新，核心资料优先排序）
+- 使用方法：`python3 scrape_product_with_playwright.py --url "产品URL" --product-id 产品ID`
+- 相关文件：`scrape_product_with_playwright.py`、`/tmp/playwright-scraper-product-enhanced.js`
+- 详细文档：`PLAYWRIGHT_SCRAPER_ENHANCED.md`
 
 ## 技术架构
 
@@ -242,6 +526,53 @@ harry-insurance/
 - `non_guaranteed_cash_value`: 非保证现金价值
 - `total_cash_value`: 总现金价值
 - 与PlanDocument关联（外键）
+
+### InsuranceProduct（保险产品品种）
+产品品种主表，存储：
+- `company`: 所属保险公司（外键）
+- `product_name`: 产品名称
+- `product_category`: 产品分类（重疾险、理财、储蓄等）
+- `supported_payment_periods`: 支持的缴费年期（例如：趸缴,2年,5年,10年）
+- `description`: 产品描述
+- `plan_summary`: 计划书产品概要
+- `plan_details`: 计划书详情
+- `plan_pdf_base64`: 计划书PDF Base64编码
+- `product_research_report`: 产品研究报告
+- ⚠️ 以下字段已废弃，改用ProductPlan关联表：
+  - `payment_period`: 缴费年期（已废弃）
+  - `annual_premium`: 年缴金额（已废弃）
+  - `surrender_value_table`: 退保价值表（已废弃）
+  - `death_benefit_table`: 身故赔偿表（已废弃）
+
+### ProductPlan（产品缴费方案）⭐ 新增
+同一产品的不同缴费年期方案（一对多关系）：
+- `product`: 关联产品（外键 → InsuranceProduct）
+- `plan_name`: 方案名称（自动生成：5年缴费方案）
+- `payment_period`: 缴费年期（1、2、5、10、20等）
+- `annual_premium`: 年缴金额
+- `total_premium`: 总保费（自动计算 = 年缴 × 年期）
+- `surrender_value_table`: 退保价值表（JSON格式）
+- `death_benefit_table`: 身故赔偿表（JSON格式）
+- `irr_rate`: 内部回报率 IRR%
+- `is_recommended`: 是否推荐方案
+- `is_active`: 是否启用
+- 唯一约束：`(product_id, payment_period)` 同一产品不能有重复年期
+
+**设计优势**：
+- ✅ 每个产品品种只需一条记录（避免重复）
+- ✅ 缴费方案独立管理（如5年期、10年期、20年期）
+- ✅ 支持标记推荐方案
+- ✅ CompanyComparison页面已适配新结构
+
+**使用示例**：
+```python
+# 获取产品的所有缴费方案
+product = InsuranceProduct.objects.get(id=1)
+plans = product.plans.all()  # 返回该产品的所有缴费方案
+
+# 获取特定年期的方案
+plan_5 = product.plans.get(payment_period=5)
+```
 
 ## API端点
 
@@ -547,7 +878,7 @@ return year == 1  # 数据行，判断是否为1
 
 ### 任务流水线
 
-当用户上传PDF后，系统会自动执行以下流程：
+当用户上传PDF后，系统会自动执行以下流程（**当前架构**）：
 
 ```
 用户上传PDF（Plan-Analyzer页面）
@@ -562,64 +893,49 @@ POST /api/ocr/upload-async/（保存PDF文件）
     ↓
 保存到 media/plan_documents/
     ↓
-创建PlanDocument记录（file_name, file_path, status='processing'）
+创建PlanDocument记录（file_name, file_path, status='processing', processing_stage='ocr_pending'）
     ↓
-触发Celery任务链（3个核心任务按顺序执行）
+触发Celery任务：extract_table_data_direct_task（单一任务直接处理）
     ↓
-[步骤0] OCR识别 (ocr_document_task)
-    → 调用 Gemini 3 Flash Preview API识别PDF
-    → 提取Markdown格式文本（包含HTML表格）
-    → 保存到 content 字段
+[核心任务] 直接提取表格数据 (extract_table_data_direct_task)
+    → processing_stage: 'extracting_table1'
+    → 使用 Gemini 3 Flash Preview API 直接分析 PDF 文件
+    → 无需先OCR识别，直接从PDF提取结构化数据
+    → 提取：受保人信息、保险产品信息、保费信息、年度价值表
+    → 保存到 table1 字段（JSON格式）
+    → 同时更新数据库字段：
+      - insured_name（受保人姓名）
+      - insured_age（受保人年龄）
+      - insured_gender（受保人性别）
+      - product_name（保险产品名称）
+      - insurance_company（保险公司）
+      - annual_premium（年缴保费）
+      - payment_years（缴费年数）
+      - total_premium（总保费）
+    → processing_stage: 'all_completed'
+    → status: 'completed'
     ↓
-[步骤1] 提取表格源代码 (extract_tablecontent_task)
-    → 从content按页分割（--- 分隔符）
-    → 提取每页的所有<table>标签（手动解析，非正则）
-    → 过滤：只保留包含"保单年度终结/保單年度終結"的表格
-    → Table级过滤（不是页面级）
-    → 移除换行符避免OCR分词问题
-    → 保存到 tablecontent 字段
-    ↓
-[步骤2] 提取表格概要并保存到数据库 (extract_tablesummary_task)
-    → 调用 Gemini Flash API 生成表格概要文本
-    → 从tablecontent提取所有包含"保单年度终结"的<table>标签
-    → 使用check_first_year_in_table判断是否从年度1开始
-    → 基于数字特征检测（跳过多行表头）
-    → 跳过孤立续表（不从1开始且前面无可接续表格）
-    → 自动分组合并跨页表格（group_tables_by_title）
-    → 每个逻辑表格创建一条PlanTable记录
-    → 保存表格HTML源代码和元数据
-    ↓
-[步骤3] 提取基本信息 (extract_basic_info_task)
-    → 调用 Gemini Flash API 提取受保人、产品、保费等信息
-    → 保存到 extracted_data 字段
-    ↓
-[步骤4] 提取年度价值表数据 (extract_table_data_task)
-    → 调用 Gemini Flash API 解析表格HTML
-    → 提取每年的保证/非保证现金价值
-    → 保存到 AnnualValue 数据库
-    ↓
-[步骤5] 生成计划书概要 (extract_summary_task)
-    → 调用 Gemini Flash API 生成Markdown格式概要
-    → 保存到 summary 字段
-    ↓
-处理完成（processing_stage: all_completed, status: completed）
+处理完成（前端轮询检测到 processing_stage: 'all_completed'）
 ```
+
+**⚠️ 旧架构已废弃**：
+早期版本使用6步任务链（ocr_document_task → extract_tablecontent_task → extract_tablesummary_task → extract_basic_info_task → extract_table_data_task → extract_summary_task），需要多次API调用和中间数据存储。现已简化为单一任务直接处理。
 
 ### 核心组件
 
 1. **任务队列**: Redis (localhost:6379)
 2. **任务处理器**: Celery Worker (4个并发)
-3. **任务定义**: `api/tasks.py`
+3. **任务定义**: `api/tasks.py:1607` (extract_table_data_direct_task)
 4. **任务配置**: `backend/celery.py`
-5. **任务触发**: `api/ocr_views.py:122` (save_ocr_result函数)
+5. **任务触发**: `api/ocr_views.py:1501` (upload_pdf_async函数)
 
 ### 任务特性
 
-- **自动链式触发**: 每个任务完成后自动触发下一个任务
-- **重试机制**: 每个任务最多重试2次（60秒间隔）
-- **降级策略**: 即使某个任务失败，也会继续执行后续任务
-- **状态跟踪**: 实时更新 `processing_stage` 字段
-- **进度显示**: 前端可轮询状态获取处理进度
+- **单一任务处理**: 使用一个任务直接完成所有分析（简化架构）
+- **直接PDF分析**: Gemini API直接读取PDF，无需先OCR识别
+- **重试机制**: 任务最多重试2次（60秒间隔）
+- **状态跟踪**: 实时更新 `processing_stage` 字段（ocr_pending → extracting_table1 → all_completed）
+- **进度显示**: 前端通过 GET /api/ocr/documents/{id}/status/ 轮询获取处理进度
 
 ### 监控和管理
 
@@ -637,96 +953,78 @@ tail -f logs/celery.log
 redis-cli LLEN celery
 ```
 
-### 表格提取核心逻辑
+### 核心任务实现详解
 
-#### 步骤1：表格源代码提取（extract_tablecontent_task）
+#### extract_table_data_direct_task（当前唯一任务）
 
-**核心功能**：从OCR文本中提取所有包含"保单年度终结"的表格HTML源代码
+**核心功能**：直接从PDF文件提取所有保险数据（一步完成）
 
-**关键技术点**：
-1. **手动HTML解析**（非正则）：
-   - 使用 `str.find()` 查找 `<table>` 和 `</table>`
-   - 支持嵌套表格（深度追踪）
-   - 避免正则表达式在大表格上的性能问题
+**技术实现**（api/tasks.py:1607）：
 
-2. **Table级过滤**（非页面级）：
-   - 提取页面所有表格
-   - 逐个检查是否包含关键词
-   - 只保留符合条件的表格，删除其他表格
-   - 重建页面HTML
+```python
+@shared_task(bind=True, max_retries=2, default_retry_delay=60)
+def extract_table_data_direct_task(self, document_id):
+    # 1. 更新状态为"正在提取表格"
+    doc.processing_stage = 'extracting_table1'
+    doc.save()
 
-3. **OCR换行问题处理**：
-   - OCR可能把"保單年度終結"识别为"保單年度\n終結"
-   - 检测前移除所有换行符：`table_html.replace('\n', '').replace('\r', '')`
+    # 2. 调用 Gemini API 直接分析 PDF
+    from .gemini_service import extract_table_data_from_pdf
+    result = extract_table_data_from_pdf(pdf_path)
 
-**代码位置**：`api/tasks.py:501-654`
+    # 3. 保存 table1 JSON数据
+    doc.table1 = json.dumps(result['table_data'], ensure_ascii=False, indent=2)
 
-#### 步骤2：表格分组和数据库保存（extract_tablesummary_task）
+    # 4. 提取 policy_info 并更新数据库字段
+    policy_info = result['table_data']['policy_info']
+    doc.insured_name = policy_info.get('姓名')
+    doc.insured_age = policy_info.get('年龄')
+    doc.insured_gender = policy_info.get('性别')
+    doc.product_name = policy_info.get('产品名称')
+    doc.insurance_company = policy_info.get('保险公司')
+    doc.annual_premium = policy_info.get('年缴保费')
+    doc.payment_years = policy_info.get('缴费年数')
+    doc.total_premium = policy_info.get('总保费')
 
-**核心功能**：识别逻辑表格，合并跨页表格，保存到PlanTable数据库
+    # 5. 标记完成
+    doc.processing_stage = 'all_completed'
+    doc.status = 'completed'
+    doc.save()
+```
 
-**关键技术点**：
-1. **多行表头检测**（check_first_year_in_table）：
-   - **改进前**：使用关键词白名单（需要维护20+个关键词）
-   - **改进后**：基于数字特征判断
-   - 跳过 `<th>` 标签行
-   - 检查第一列是否为纯数字（`str.isdigit()`）
-   - 非数字 → 表头行，继续寻找
-   - 数字 → 数据行，判断是否为1
+**关键特点**：
+- ✅ **无需OCR预处理**：Gemini直接读取PDF文件
+- ✅ **一次API调用**：所有数据一次性提取完成
+- ✅ **结构化输出**：直接保存为JSON格式
+- ✅ **自动填充字段**：从JSON中提取关键信息更新数据库
 
-2. **跨页表格合并**（group_tables_by_title）：
-   - 规则1：保单年度=1 → 新表格的开始
-   - 规则2：保单年度≠1 → 必须接续前一个表格
-   - 规则3：表头不同 → 跳过孤立续表
-   - 规则4：表头相同 + 年度≠1 → 续表，合并到当前组
-
-3. **PlanTable记录创建**：
-   - 每个逻辑表格（可能包含多个跨页<table>）创建一条记录
-   - 存储：table_number, table_name, row_count, fields, table_html
-
-**代码位置**：`api/tasks.py:656-900`
-
-**改进历史**：
-- ✅ 修复正则匹配失败（改用手动解析）
-- ✅ 修复页面级过滤（改为table级）
-- ✅ 修复OCR换行问题（移除换行符）
-- ✅ 修复多行表头识别（基于数字特征）
-- ✅ 修复孤立续表问题（跳过不从1开始的表格）
+**数据结构**（table1字段）：
+```json
+{
+  "policy_info": {
+    "姓名": "李华",
+    "年龄": 41,
+    "性别": "女",
+    "产品名称": "法国盛利 II 至尊",
+    "保险公司": "AXA安盛",
+    "年缴保费": 50000,
+    "缴费年数": 5,
+    "总保费": 250000
+  },
+  "annual_values": [
+    {
+      "year": 1,
+      "guaranteed_cash_value": 0,
+      "non_guaranteed_cash_value": 45000,
+      "total_cash_value": 45000
+    },
+    ...
+  ]
+}
+```
 
 ### 详细文档
 更多配置和使用说明，请参阅：
 - **CELERY_SETUP.md** - 完整的Celery安装、配置和使用指南
 - **api/tasks.py** - 所有任务的详细实现代码
-- **CROSS_PAGE_TABLE_HANDLING.md** - 跨页表格处理机制
-- **TABLE_EXTRACTION_IMPROVEMENTS.md** - 表格提取改进记录
-
-### 步骤5代码逻
-核心逻辑（两步走）：
-
-  第一步：判断是否存在
-
-  - 读取 tablesummary（步骤3生成的表格概要）
-  - 调用 DeepSeek API 判断是否有包含"入息"/"提取"/"无忧选"字段的表格
-  - 如果不存在 → 保存空字符串，结束
-
-  第二步：提取数据（如果存在）
-
-  - 从 content（OCR文本）中提取该表格的具体数据
-  - 调用 DeepSeek API 提取4个字段：
-    - policy_year: 保单年度
-    - withdraw: 该年非保证入息
-    - withdraw_total: 累计已支付非保证入息
-    - total: 行使无忧选后的退保价值
-- 第一步OCR识别 如果失败 其他步骤就全部没有意义了
-- 第一步OCR识别 如果失败 其他步骤就全部没有意义了
-- /memory 页面company-comparison 文件frontend/src/components/CompanyComparison.jsx
-- /memory 您的系统（可能是 AppArmor 或其他安全模块）正在杀死 esbuild 的原生二进制文件（每次运行都被 SIGKILL 信号杀死，Exit code
-  137）。
-
-  解决方案
-
-  我使用了 esbuild-wasm（WebAssembly 版本的 esbuild）替代原生二进制版本：
-
-  1. ✅ 安装了 esbuild-wasm
-  2. ✅ 通过符号链接将 node_modules/esbuild 指向 esbuild-wasm
-  3. ✅ 构建成功完成（11.94秒
+- **api/gemini_service.py** - Gemini API调用服务

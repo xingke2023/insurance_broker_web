@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>香港保險業 AI 智能化解決方案 | 項目申報儀表板</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@300;400;500;700&display=swap" rel="stylesheet">
+    
+    <!-- Chosen Palette: Warm Corporate Tech -->
+    <!-- Application Structure Plan: 
+         Updated Page Header to include the Reporting Unit Name.
+         - Added "匯報單位：HONGKONG MACRODATA TECHNOLOGY LIMITED" to the top right header.
+         Preserved all previous updates:
+         - "Insurance Industry AI Office Efficiency Improvement Tool" button text.
+         - "AI Intelligent Insurance Consultant System" button text (without "Right Wing").
+         - LOI status, Product List, Demo Links.
+         Confirmed NO SVG and NO Mermaid JS. -->
+
+    <style>
+        body {
+            font-family: 'Noto Sans TC', sans-serif;
+            background-color: #fdfbf7;
+            color: #334155;
+        }
+
+        /* MANDATORY CHART CONTAINER STYLING */
+        .chart-container {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            margin-left: auto;
+            margin-right: auto;
+            height: 350px;
+            max-height: 400px;
+        }
+        @media (min-width: 768px) {
+            .chart-container {
+                height: 400px;
+            }
+        }
+
+        /* Custom Utilities */
+        .card-hover {
+            transition: all 0.3s ease;
+        }
+        .card-hover:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        }
+        .nav-btn.active {
+            background-color: #1e3a8a;
+            color: white;
+            border-color: #1e3a8a;
+        }
+        .tech-layer {
+            transition: all 0.2s;
+            border-left: 4px solid transparent;
+        }
+        .tech-layer:hover {
+            border-left-color: #ea580c;
+            background-color: rgba(255, 255, 255, 0.05);
+        }
+        .timeline-line {
+            position: absolute;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 4px;
+            height: 100%;
+            background-color: #e2e8f0;
+            z-index: 0;
+        }
+        @media (max-width: 768px) {
+            .timeline-line {
+                left: 20px;
+            }
+        }
+        .demo-btn-pulse {
+            animation: pulse-orange 2s infinite;
+        }
+        @keyframes pulse-orange {
+            0% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0.7); }
+            70% { box-shadow: 0 0 0 10px rgba(234, 88, 12, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(234, 88, 12, 0); }
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen">
+
+    <!-- Navigation / Header (UPDATED) -->
+    <header class="bg-white shadow-sm sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-20 flex items-center justify-between">
+            <div class="flex items-center space-x-2 flex-shrink-0">
+                <span class="h-8 w-8 bg-orange-600 rounded flex items-center justify-center text-white font-bold">M</span>
+                <span class="text-xl font-bold text-slate-800 tracking-tight">MACRODATA <span class="text-orange-600">AI</span></span>
+            </div>
+            
+            <nav class="hidden md:flex space-x-6 items-center">
+                <a href="#overview" class="text-slate-600 hover:text-orange-600 font-medium transition text-sm">項目概覽</a>
+                <a href="#solution" class="text-slate-600 hover:text-orange-600 font-medium transition text-sm">雙引擎方案</a>
+                <a href="#tech" class="text-slate-600 hover:text-orange-600 font-medium transition text-sm">核心技術</a>
+                <a href="https://www.hongkong-insurance.com/" target="_blank" class="px-3 py-1.5 bg-orange-50 text-orange-600 border border-orange-200 rounded-full font-bold hover:bg-orange-100 transition flex items-center text-xs">
+                    <span class="mr-1">🚀</span> 產品演示
+                </a>
+            </nav>
+
+            <!-- Added Reporting Unit Info -->
+            <div class="text-xs text-slate-500 text-right hidden lg:block leading-tight">
+                <div class="font-bold text-slate-800 mb-1">匯報單位：HONGKONG MACRODATA TECHNOLOGY LIMITED</div>
+                <div>匯報人: Mi Xiaobing <span class="mx-1 text-slate-300">|</span> 2026年1月24日</div>
+            </div>
+        </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section id="overview" class="bg-[#1e3a8a] text-white py-16 lg:py-24 relative overflow-hidden">
+        <div class="absolute top-0 right-0 w-64 h-64 bg-orange-500 opacity-10 rounded-full blur-3xl transform translate-x-1/2 -translate-y-1/2"></div>
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 relative z-10 text-center lg:text-left">
+            <div class="lg:w-2/3">
+                <div class="inline-block px-3 py-1 bg-orange-600 bg-opacity-20 border border-orange-500 rounded-full text-orange-300 text-sm font-semibold mb-6">
+                    項目申報計劃書
+                </div>
+                <h1 class="text-4xl lg:text-6xl font-extrabold tracking-tight leading-tight mb-6">
+                    香港保險業 <br><span class="text-orange-500">AI 智能化</span> 解決方案
+                </h1>
+                <p class="text-xl text-blue-100 mb-8 max-w-2xl leading-relaxed">
+                    我們的願景是以 AI 重塑香港保險行業。在保留保司原有核心系統的基礎上延伸 AI 能力，大幅提升 10 萬從業者的運營效率。
+                </p>
+                <div class="flex flex-col sm:flex-row gap-4 justify-center lg:justify-start">
+                    <a href="https://www.hongkong-insurance.com/" target="_blank" class="demo-btn-pulse px-8 py-3 bg-orange-600 hover:bg-orange-700 text-white font-bold rounded-lg transition shadow-lg flex items-center justify-center">
+                        訪問演示官網 ➜
+                    </a>
+                    <button onclick="document.getElementById('tech').scrollIntoView({behavior: 'smooth'})" class="px-8 py-3 bg-transparent border-2 border-white hover:bg-white hover:text-blue-900 text-white font-bold rounded-lg transition">
+                        查看核心架構
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Market Context & Project Background -->
+    <section class="py-12 bg-white -mt-10 relative z-20 mx-4 lg:mx-auto max-w-7xl rounded-xl shadow-xl border border-slate-100">
+        <div class="px-6 lg:px-12">
+            <!-- Narrative Section -->
+            <div class="mb-10 grid grid-cols-1 lg:grid-cols-2 gap-10">
+                <div>
+                    <h2 class="text-2xl font-bold text-slate-800 mb-4 border-l-4 border-orange-600 pl-4">行業現狀與痛點</h2>
+                    <p class="text-slate-600 leading-relaxed mb-4">
+                        香港擁有超過 <strong class="text-slate-900">10 萬名保險從業者</strong>，但他們的工作流程仍高度傳統。行業普遍過度依賴人工操作、郵件往來及零散的工具，導致運營效率極為低下，無法滿足現代金融服務對速度與專業度的要求。
+                    </p>
+                    <p class="text-slate-600 leading-relaxed">
+                        與此同時，各大保險公司已投入大量資源建設傳統的自有數字化系統（Core Systems）。直接推翻重建成本高昂且風險巨大。
+                    </p>
+                </div>
+                <div class="bg-blue-50 p-6 rounded-lg border border-blue-100">
+                    <h2 class="text-2xl font-bold text-blue-900 mb-4 border-l-4 border-blue-600 pl-4">項目背景與成果</h2>
+                    <p class="text-slate-700 leading-relaxed mb-4">
+                        <strong class="text-blue-800">我們的策略：</strong> 採用「AI 能力延伸」模式。在保留保司原有系統核心功能的基礎上，通過我們的系統無縫延伸 AI 能力，實現低成本、高效率的智能化升級。
+                    </p>
+                    <ul class="space-y-2 text-sm text-slate-600">
+                        <li class="flex items-start"><span class="text-orange-500 mr-2">●</span> 已在該領域深耕 <strong class="text-slate-900">6 個月</strong>，部分產品已有試用客戶。</li>
+                        <li class="flex items-start"><span class="text-orange-500 mr-2">●</span> 已與 <strong class="text-slate-900">部分經紀公司</strong> 達成初步合作意向 (LOI)。</li>
+                        <li class="flex items-start"><span class="text-orange-500 mr-2">●</span> 驗證了「保留核心+AI延伸」技術路徑的可行性。</li>
+                    </ul>
+                </div>
+            </div>
+
+            <!-- KPI Cards -->
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-8 border-t border-slate-100 pt-8">
+                <div class="p-6 bg-slate-50 rounded-lg border-l-4 border-orange-500 card-hover">
+                    <div class="text-4xl font-bold text-slate-800 mb-2">10W+</div>
+                    <h3 class="font-bold text-slate-700 mb-2">持牌從業者</h3>
+                    <p class="text-sm text-slate-500">工作流程高度傳統，亟需數字化工具賦能。</p>
+                </div>
+                <div class="p-6 bg-slate-50 rounded-lg border-l-4 border-blue-800 card-hover">
+                    <div class="text-4xl font-bold text-slate-800 mb-2">LOI</div>
+                    <h3 class="font-bold text-slate-700 mb-2">達成初步合作意向</h3>
+                    <p class="text-sm text-slate-500">已與部分經紀公司達成初步合作意向，驗證了產品的市場價值。</p>
+                </div>
+                <div class="p-6 bg-slate-50 rounded-lg border-l-4 border-orange-500 card-hover">
+                    <div class="text-4xl font-bold text-slate-800 mb-2">6 個月</div>
+                    <h3 class="font-bold text-slate-700 mb-2">行業深耕與產品打磨</h3>
+                    <p class="text-sm text-slate-500">已有試用客戶，產品成熟度高。</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Dual Engine Solution Section -->
+    <section id="solution" class="py-20 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="text-center mb-12">
+            <h2 class="text-3xl lg:text-4xl font-bold text-slate-800 mb-4">雙引擎驅動解決方案</h2>
+            <p class="text-lg text-slate-600 max-w-3xl mx-auto">
+                保留原有核心系統，通過 AI 延伸能力，實現無縫升級。
+            </p>
+        </div>
+
+        <!-- Interactive Tabs -->
+        <div class="flex flex-col md:flex-row justify-center mb-10 space-y-4 md:space-y-0 md:space-x-6">
+            <button id="btn-efficiency" onclick="switchTab('efficiency')" class="nav-btn active px-8 py-4 rounded-full border-2 border-slate-200 text-slate-600 font-bold text-lg transition shadow-sm flex items-center justify-center gap-2">
+                <span>⚡</span> 保險行業 AI 辦公效能提升工具
+            </button>
+            <button id="btn-consultant" onclick="switchTab('consultant')" class="nav-btn px-8 py-4 rounded-full border-2 border-slate-200 text-slate-600 font-bold text-lg transition shadow-sm flex items-center justify-center gap-2">
+                <span>🧠</span> AI 智能保險顧問系統
+            </button>
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-xl border border-slate-100 overflow-hidden relative min-h-[650px]">
+            
+            <!-- Content: Efficiency -->
+            <div id="content-efficiency" class="p-8 lg:p-12 block animate-fade-in">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                    <div>
+                        <div class="inline-block px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-xs font-bold mb-4">Workflow Efficiency</div>
+                        <h3 class="text-2xl font-bold text-slate-800 mb-4">釋放 70% 行政事務時間</h3>
+                        <p class="text-slate-600 mb-6">
+                            通過 API 延伸技術，無需推翻保司原有核心系統即可實現自動化。我們已針對行業痛點，推出了成熟的標準化產品。
+                        </p>
+                        
+                        <!-- Products List with Demo Link -->
+                        <div class="bg-orange-50 border border-orange-100 rounded-xl p-5 mb-6">
+                            <h4 class="font-bold text-orange-700 mb-3 flex items-center">
+                                <span class="mr-2">🚀</span> 目前已成型產品
+                            </h4>
+                            <ul class="space-y-4 mb-5">
+                                <li class="flex items-start">
+                                    <div class="w-1.5 h-1.5 bg-orange-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                                    <div>
+                                        <strong class="text-slate-900 block">智能化計劃書分析和比對工具</strong>
+                                        <span class="text-sm text-slate-600">自動提取PDF計劃書關鍵數據（IRR、回本期），秒級生成多產品維度對比報告。</span>
+                                    </div>
+                                </li>
+                                <li class="flex items-start">
+                                    <div class="w-1.5 h-1.5 bg-orange-500 rounded-full mt-2 mr-3 flex-shrink-0"></div>
+                                    <div>
+                                        <strong class="text-slate-900 block">保險產品AI數據訓練和分析管理系統</strong>
+                                        <span class="text-sm text-slate-600">一站式後台管理系統，支持產品數據的清洗、標註、向量化訓練及模型效果分析。</span>
+                                    </div>
+                                </li>
+                            </ul>
+                            <!-- Demo Button -->
+                            <a href="https://www.hongkong-insurance.com/" target="_blank" class="block w-full text-center py-2 bg-white border border-orange-300 text-orange-600 font-bold rounded-lg hover:bg-orange-600 hover:text-white transition">
+                                🌐 點擊訪問產品演示網站
+                            </a>
+                        </div>
+                    </div>
+                    <div class="bg-slate-50 rounded-xl p-6 border border-slate-200">
+                        <h4 class="text-center font-bold text-slate-700 mb-4">單案處理耗時對比 (分鐘)</h4>
+                        <div class="chart-container"><canvas id="efficiencyChart"></canvas></div>
+                        <p class="text-center text-xs text-slate-400 mt-4">註：基於現有產品實測數據</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Content: Consultant -->
+            <div id="content-consultant" class="p-8 lg:p-12 hidden animate-fade-in">
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+                    <div class="order-2 lg:order-1 bg-slate-50 rounded-xl p-6 border border-slate-200">
+                        <h4 class="text-center font-bold text-slate-700 mb-4">能力維度模型</h4>
+                        <div class="chart-container"><canvas id="consultantChart"></canvas></div>
+                    </div>
+                    <div class="order-1 lg:order-2">
+                        <div class="inline-block px-3 py-1 bg-orange-100 text-orange-800 rounded-full text-xs font-bold mb-4">Data Intelligence System</div>
+                        <h3 class="text-2xl font-bold text-slate-800 mb-4">AI 智能保險顧問系統</h3>
+                        <p class="text-slate-600 mb-4 text-sm leading-relaxed">
+                            系統以 <strong class="text-slate-800">數據與算法</strong> 為核心驅動力，通過 <strong class="text-slate-800">深度學習引擎</strong> 實現保險計劃書的高精度解析與自動化對比。基於融合精算數據、用戶行為及歷史保單特徵的 <strong class="text-slate-800">多因子動態模型</strong>，構建個性化的智能推薦體系。
+                        </p>
+                        
+                        <div class="space-y-4">
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold mt-1">1</div>
+                                <div class="ml-3">
+                                    <h4 class="text-sm font-bold text-slate-800">龐大的配置方案案例庫</h4>
+                                    <p class="text-xs text-slate-500 mt-1">累積海量客戶保險金融資產配置方案，為 AI 訓練提供堅實數據基礎。</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold mt-1">2</div>
+                                <div class="ml-3">
+                                    <h4 class="text-sm font-bold text-slate-800">AI 最優化金融配置</h4>
+                                    <p class="text-xs text-slate-500 mt-1">依據用戶多維財務目標與風險畫像，進行量化分析與收益模擬，智能化輸出科學、可追溯的優化方案。</p>
+                                </div>
+                            </div>
+                            <div class="flex items-start">
+                                <div class="flex-shrink-0 w-8 h-8 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 font-bold mt-1">3</div>
+                                <div class="ml-3">
+                                    <h4 class="text-sm font-bold text-slate-800">合規與效率雙提升</h4>
+                                    <p class="text-xs text-slate-500 mt-1">全流程數字化設計，解決條款複雜、對比低效等痛點，顯著提升服務合規性。</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Technology Section (Detailed Architecture) -->
+    <section id="tech" class="py-20 bg-slate-900 text-white">
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div class="text-center mb-16">
+                <h2 class="text-3xl lg:text-4xl font-bold mb-4">核心技術架構</h2>
+                <p class="text-slate-400 max-w-3xl mx-auto">
+                    構建基於 <span class="text-orange-500 font-bold">RAG + 大模型微調</span> 的垂直領域智能中台。
+                </p>
+            </div>
+
+            <!-- Architecture Diagram Container -->
+            <div class="flex flex-col lg:flex-row gap-6 items-stretch justify-center">
+                
+                <!-- 1. Input Layer -->
+                <div class="lg:w-1/4 bg-slate-800 rounded-xl p-6 border border-slate-700 flex flex-col relative group hover:border-blue-500 transition">
+                    <div class="bg-blue-900 text-blue-200 text-xs font-bold px-3 py-1 rounded-full w-max mb-4 uppercase tracking-wider">Step 1: Input</div>
+                    <h3 class="text-xl font-bold text-white mb-4 flex items-center">
+                        <span class="text-2xl mr-2">📂</span> 多源數據輸入
+                    </h3>
+                    <ul class="space-y-3 text-sm text-slate-300">
+                        <li class="flex items-center p-2 bg-slate-700/50 rounded border border-slate-700"><span class="mr-2 text-blue-400">•</span> 保險公司所有產品文檔與數據</li>
+                        <li class="flex items-center p-2 bg-slate-700/50 rounded border border-slate-700"><span class="mr-2 text-blue-400">•</span> 客戶產品計劃書</li>
+                        <li class="flex items-center p-2 bg-slate-700/50 rounded border border-slate-700"><span class="mr-2 text-blue-400">•</span> 客戶諮詢及售後資料</li>
+                    </ul>
+                    <div class="hidden lg:flex absolute top-1/2 -right-4 w-8 h-8 items-center justify-center z-10"><span class="text-slate-500 text-2xl">➔</span></div>
+                </div>
+
+                <!-- 2. Core Engine -->
+                <div class="lg:w-1/2 bg-slate-800 rounded-xl border-2 border-orange-600/50 p-1 relative shadow-[0_0_30px_rgba(234,88,12,0.15)] flex flex-col">
+                    <div class="absolute -top-4 left-1/2 transform -translate-x-1/2 bg-orange-600 text-white text-xs px-4 py-1 rounded-full uppercase tracking-wider font-bold shadow-lg z-20">Step 2: 核心引擎 🧠</div>
+                    <div class="flex-1 bg-slate-900/50 rounded-lg p-6 flex flex-col gap-6 mt-4">
+                        <div class="tech-layer p-4 bg-slate-800 rounded border border-slate-700/50">
+                            <h4 class="text-orange-400 font-bold mb-2 flex items-center"><span class="w-6 h-6 rounded bg-orange-500/20 text-orange-500 flex items-center justify-center text-xs mr-2">2.3</span>向量引擎 + RAG</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-300">
+                                <div><span class="text-orange-500 mr-1">▸</span> <strong>向量數據庫：</strong>毫秒級檢索</div>
+                                <div><span class="text-orange-500 mr-1">▸</span> <strong>多層檢索：</strong>語義+關鍵詞混合</div>
+                                <div><span class="text-orange-500 mr-1">▸</span> <strong>動態嵌入：</strong>自適應 Embedding</div>
+                                <div><span class="text-orange-500 mr-1">▸</span> <strong>可追溯生成：</strong>杜絕幻覺</div>
+                            </div>
+                        </div>
+                        <div class="tech-layer p-4 bg-slate-800 rounded border border-slate-700/50">
+                            <h4 class="text-blue-400 font-bold mb-2 flex items-center"><span class="w-6 h-6 rounded bg-blue-500/20 text-blue-400 flex items-center justify-center text-xs mr-2">2.2</span>大模型訓練與微調</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-300">
+                                <div><span class="text-blue-500 mr-1">▸</span> <strong>領域預訓練：</strong>保險語料注入</div>
+                                <div><span class="text-blue-500 mr-1">▸</span> <strong>指令微調：</strong>優化指令遵循</div>
+                                <div><span class="text-blue-500 mr-1">▸</span> <strong>多任務學習：</strong>問答/摘要優化</div>
+                                <div><span class="text-blue-500 mr-1">▸</span> <strong>RLHF：</strong>專家反饋強化</div>
+                            </div>
+                        </div>
+                        <div class="tech-layer p-4 bg-slate-800 rounded border border-slate-700/50">
+                            <h4 class="text-green-400 font-bold mb-2 flex items-center"><span class="w-6 h-6 rounded bg-green-500/20 text-green-400 flex items-center justify-center text-xs mr-2">2.1</span>機器學習與算法層</h4>
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs text-slate-300">
+                                <div><span class="text-green-500 mr-1">▸</span> <strong>預測建模：</strong>風險與行為分析</div>
+                                <div><span class="text-green-500 mr-1">▸</span> <strong>分類聚類：</strong>客戶需求標籤化</div>
+                                <div><span class="text-green-500 mr-1">▸</span> <strong>時序分析：</strong>銷售趨勢預測</div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="hidden lg:flex absolute top-1/2 -right-5 w-8 h-8 items-center justify-center z-10"><span class="text-slate-500 text-2xl">➔</span></div>
+                </div>
+
+                <!-- 3. Output Layer -->
+                <div class="lg:w-1/4 bg-slate-800 rounded-xl p-6 border border-slate-700 flex flex-col relative hover:border-blue-500 transition">
+                    <div class="bg-blue-900 text-blue-200 text-xs font-bold px-3 py-1 rounded-full w-max mb-4 uppercase tracking-wider">Step 3: Output</div>
+                    <h3 class="text-xl font-bold text-white mb-4 flex items-center"><span class="text-2xl mr-2">📱</span> 智能應用輸出</h3>
+                    <div class="space-y-3">
+                        <div class="p-3 bg-gradient-to-r from-slate-700 to-slate-800 rounded border-l-2 border-orange-500"><div class="text-sm font-bold text-white">智能比較報告生成</div></div>
+                        <div class="p-3 bg-gradient-to-r from-slate-700 to-slate-800 rounded border-l-2 border-orange-500"><div class="text-sm font-bold text-white">最優財務規劃推薦</div></div>
+                        <div class="p-3 bg-gradient-to-r from-slate-700 to-slate-800 rounded border-l-2 border-blue-500"><div class="text-sm font-bold text-white">即時精算問答</div></div>
+                        <div class="p-3 bg-gradient-to-r from-slate-700 to-slate-800 rounded border-l-2 border-blue-500"><div class="text-sm font-bold text-white">可視化圖表展示</div></div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </section>
+
+    <!-- Roadmap Section -->
+    <section id="roadmap" class="py-20 max-w-4xl mx-auto px-4">
+        <div class="text-center mb-16">
+            <h2 class="text-3xl font-bold text-slate-800">項目里程碑</h2>
+        </div>
+        <div class="relative">
+            <div class="timeline-line"></div>
+            <!-- Milestone 1 -->
+            <div class="relative z-10 mb-12 flex flex-col md:flex-row items-center w-full">
+                <div class="order-1 md:w-5/12 text-center md:text-right md:pr-8">
+                    <h3 class="text-xl font-bold text-slate-800">過去 6 個月 (已完成)</h3>
+                    <p class="text-slate-600 text-sm">核心算法研發完畢。<br>完成 1家 頭部保司系統深度調研。<br><strong class="text-orange-600">兩大核心產品已成型。</strong></p>
+                </div>
+                <div class="order-2 w-8 h-8 bg-green-500 rounded-full border-4 border-white shadow-md z-10 flex items-center justify-center my-4 md:my-0"><span class="text-white text-xs">✓</span></div>
+                <div class="order-3 md:w-5/12 md:pl-8"></div>
+            </div>
+            <!-- Milestone 2 -->
+            <div class="relative z-10 mb-12 flex flex-col md:flex-row items-center w-full">
+                <div class="order-1 md:w-5/12"></div>
+                <div class="order-2 w-8 h-8 bg-orange-500 rounded-full border-4 border-white shadow-md z-10 flex items-center justify-center my-4 md:my-0"><span class="text-white text-xs">●</span></div>
+                <div class="order-3 md:w-5/12 text-center md:text-left md:pl-8">
+                    <h3 class="text-xl font-bold text-slate-800">現在 (階段一)</h3>
+                    <p class="text-slate-600 text-sm">落實意向經紀公司試點部署。<br>門戶網站上線運營。</p>
+                </div>
+            </div>
+            <!-- Milestone 3 -->
+            <div class="relative z-10 flex flex-col md:flex-row items-center w-full">
+                <div class="order-1 md:w-5/12 text-center md:text-right md:pr-8">
+                    <h3 class="text-xl font-bold text-slate-800">未來 6-12 個月 (階段二)</h3>
+                    <p class="text-slate-600 text-sm">接入更多保司 API 接口。<br>完善「全港保險數據大腦」。</p>
+                </div>
+                <div class="order-2 w-8 h-8 bg-white border-4 border-slate-300 rounded-full z-10 my-4 md:my-0"></div>
+                <div class="order-3 md:w-5/12 md:pl-8"></div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="bg-slate-800 text-slate-400 py-12 mt-auto text-center">
+        <h3 class="text-white text-lg font-bold mb-4">HONGKONG MACRODATA TECHNOLOGY LIMITED</h3>
+        <p class="mb-6">以 AI 重塑香港保險行業，用數據定義專業價值。</p>
+        <div class="flex justify-center space-x-6 text-sm mb-6">
+            <a href="https://www.hongkong-insurance.com/" target="_blank" class="text-orange-400 hover:text-orange-300 font-bold transition">演示網站: www.hongkong-insurance.com</a>
+        </div>
+        <p class="text-xs text-slate-600">&copy; 2026 Macrodata Technology. All rights reserved.</p>
+    </footer>
+
+    <!-- Logic -->
+    <script>
+        function switchTab(tabId) {
+            document.getElementById('btn-efficiency').classList.toggle('active', tabId === 'efficiency');
+            document.getElementById('btn-consultant').classList.toggle('active', tabId === 'consultant');
+            
+            const effContent = document.getElementById('content-efficiency');
+            const consContent = document.getElementById('content-consultant');
+            
+            if (tabId === 'efficiency') {
+                consContent.classList.add('hidden');
+                effContent.classList.remove('hidden');
+            } else {
+                effContent.classList.add('hidden');
+                consContent.classList.remove('hidden');
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            // Efficiency Chart
+            new Chart(document.getElementById('efficiencyChart'), {
+                type: 'bar',
+                data: {
+                    labels: [['計劃書', '生成'], ['郵件', '回覆'], ['產品', '對比']],
+                    datasets: [
+                        { label: '人工 (分)', data: [45, 20, 60], backgroundColor: '#94a3b8' },
+                        { label: 'AI (分)', data: [2, 1, 3], backgroundColor: '#ea580c' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    plugins: { tooltip: { callbacks: { title: (items) => items[0].label.join('') } } },
+                    scales: { y: { beginAtZero: true } }
+                }
+            });
+
+            // Consultant Chart
+            new Chart(document.getElementById('consultantChart'), {
+                type: 'radar',
+                data: {
+                    labels: ['數據廣度', '精算準確度', '響應速度', '客觀性', '個性化'],
+                    datasets: [
+                        { label: '傳統', data: [40, 60, 50, 50, 70], backgroundColor: 'rgba(148, 163, 184, 0.2)', borderColor: '#94a3b8' },
+                        { label: 'AI', data: [100, 95, 100, 100, 90], backgroundColor: 'rgba(234, 88, 12, 0.2)', borderColor: '#ea580c' }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: { r: { suggestedMin: 0, suggestedMax: 100 } }
+                }
+            });
+        });
+    </script>
+</body>
+</html>

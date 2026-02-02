@@ -18,6 +18,7 @@ import VideoGenerator from './components/VideoGenerator'
 import VideoProjectList from './components/VideoProjectList'
 import TextToSpeech from './components/TextToSpeech'
 import PDFFooterRemover from './components/PDFFooterRemover'
+import PDFFooterRemover2 from './components/PDFFooterRemover2'
 import PosterAnalyzer from './components/PosterAnalyzer'
 import PlanBuilder from './components/PlanBuilder'
 import CompanyPlanBuilder from './components/CompanyPlanBuilder'
@@ -42,6 +43,7 @@ import ChineseReport from './components/ChineseReport'
 import EnglishReport from './components/EnglishReport'
 import InsuranceProducts from './components/InsuranceProducts'
 import InsuranceProductDetail from './components/InsuranceProductDetail'
+import InsuranceCompanies from './components/InsuranceCompanies'
 import InsuranceCompanyDetail from './components/InsuranceCompanyDetail'
 
 function App() {
@@ -137,6 +139,11 @@ function App() {
                 <PDFFooterRemover />
               </ProtectedRoute>
             } />
+            <Route path="/pdf-footer-remover2" element={
+              <ProtectedRoute>
+                <PDFFooterRemover2 />
+              </ProtectedRoute>
+            } />
             <Route path="/poster-analyzer" element={
               <ProtectedRoute>
                 <PosterAnalyzer />
@@ -162,7 +169,7 @@ function App() {
                 <WithdrawalCalculator />
               </ProtectedRoute>
             } />
-            <Route path="/insurance-company/:companyCode" element={
+            <Route path="/insurance-api/:companyCode" element={
               <ProtectedRoute>
                 <InsuranceCompanyPage />
               </ProtectedRoute>
@@ -208,6 +215,7 @@ function App() {
             {/* 香港保险产品大全 */}
             <Route path="/insurance-products" element={<InsuranceProducts />} />
             <Route path="/insurance-product/:id" element={<InsuranceProductDetail />} />
+            <Route path="/insurance-companies" element={<InsuranceCompanies />} />
             <Route path="/insurance-company/:id" element={<InsuranceCompanyDetail />} />
 
             {/* 报告查看 - 公开访问 */}

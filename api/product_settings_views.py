@@ -3,7 +3,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework.response import Response
 from rest_framework.authentication import SessionAuthentication
 from django.contrib.auth.models import User
-from .models import InsuranceProduct, UserProductSettings
+from .models import InsuranceProduct, ProductPlan, UserProductSettings
 
 
 @api_view(['GET'])
@@ -12,25 +12,29 @@ from .models import InsuranceProduct, UserProductSettings
 def get_all_products(request):
     """
     获取所有保险产品列表，按年期分组
+    使用 ProductPlan 模型（新版架构）而不是已废弃的 payment_period 字段
     """
     try:
-        # 获取所有启用的产品，按缴费年期和公司排序
-        products = InsuranceProduct.objects.filter(is_active=True).select_related('company').order_by('payment_period', 'company__name', 'product_name')
+        # 获取所有启用的产品方案，按缴费年期和公司排序
+        product_plans = ProductPlan.objects.filter(
+            is_active=True,
+            product__is_active=True
+        ).select_related('product', 'product__company').order_by('payment_period', 'product__company__name', 'product__product_name')
 
         # 按年期分组
         products_by_period = {}
-        for product in products:
-            period = product.payment_period
+        for plan in product_plans:
+            period = plan.payment_period
             if period not in products_by_period:
                 products_by_period[period] = []
 
             products_by_period[period].append({
-                'id': product.id,
-                'product_name': product.product_name,
-                'company_name': product.company.name,
-                'company_code': product.company.code,
-                'payment_period': product.payment_period,
-                'annual_premium': float(product.annual_premium),
+                'id': plan.id,  # 使用 ProductPlan 的 ID
+                'product_name': plan.product.product_name,
+                'company_name': plan.product.company.name,
+                'company_code': plan.product.company.code,
+                'payment_period': plan.payment_period,
+                'annual_premium': float(plan.annual_premium) if plan.annual_premium is not None else 0,
             })
 
         # 转换为列表格式，按年期排序
@@ -39,7 +43,7 @@ def get_all_products(request):
                 'payment_period': period,
                 'products': products_list
             }
-            for period, products_list in sorted(products_by_period.items())
+            for period, products_list in sorted(products_by_period.items(), key=lambda x: x[0])
         ]
 
         return Response({

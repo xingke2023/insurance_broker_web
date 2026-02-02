@@ -1,7 +1,7 @@
 from django.contrib import admin
 from django.utils.html import format_html
 from django import forms
-from .models import InsurancePolicy, PlanDocument, PlanTable, AnnualValue, MembershipPlan, UserQuota, GeminiUsage, MediaLibrary, InsuranceCompany, InsuranceProduct, InsuranceCompanyRequest, PagePermission, UserProductSettings, CustomerCase
+from .models import InsurancePolicy, PlanDocument, PlanTable, AnnualValue, MembershipPlan, UserQuota, GeminiUsage, MediaLibrary, InsuranceCompany, InsuranceProduct, ProductPlan, InsuranceCompanyRequest, PagePermission, UserProductSettings, CustomerCase, ProductPromotion, CompanyNews
 import json
 
 
@@ -480,6 +480,20 @@ class InsuranceProductInline(admin.TabularInline):
     show_change_link = True
 
 
+class ProductPlanInline(admin.TabularInline):
+    """产品缴费方案内联显示"""
+    model = ProductPlan
+    extra = 1
+    fields = ['plan_name', 'payment_period', 'annual_premium', 'total_premium', 'irr_rate', 'is_recommended', 'is_active', 'sort_order']
+    readonly_fields = ['total_premium']
+    show_change_link = True
+
+    def get_formset(self, request, obj=None, **kwargs):
+        """自定义表单集，添加帮助文本"""
+        formset = super().get_formset(request, obj, **kwargs)
+        return formset
+
+
 class InsuranceCompanyRequestInline(admin.TabularInline):
     """保险公司请求配置内联显示"""
     model = InsuranceCompanyRequest
@@ -499,7 +513,7 @@ class InsuranceCompanyAdmin(admin.ModelAdmin):
 
     fieldsets = (
         ('基本信息', {
-            'fields': ('code', 'name', 'name_en', 'flagship_product', 'description'),
+            'fields': ('code', 'name', 'name_en', 'flagship_product', 'website_url', 'description'),
             'description': '保险公司的基本标识信息'
         }),
         ('显示设置', {
@@ -895,52 +909,217 @@ class InsuranceCompanyRequestAdmin(admin.ModelAdmin):
         js = ('admin/js/insurance_company_admin.js',)
 
 
-@admin.register(InsuranceProduct)
-class InsuranceProductAdmin(admin.ModelAdmin):
-    """保险公司产品管理"""
+class InsuranceProductForm(forms.ModelForm):
+    """保险产品自定义表单 - 添加PDF上传功能"""
+
+    plan_pdf = forms.FileField(
+        required=False,
+        label='📄 选择计划书PDF文件',
+        help_text='<div style="margin-top: 10px; padding: 12px; background: #e8f4f8; border-left: 4px solid #2196F3; border-radius: 4px;">'
+                  '<strong>功能说明：</strong><br>'
+                  '• 选择PDF文件后，点击下方按钮选择处理方式：<br>'
+                  '• <strong style="color: #27ae60;">保存（默认）</strong>：更新Base64编码 + OCR识别 + 更新计划书详情<br>'
+                  '• <strong style="color: #e67e22;">仅识别并保存</strong>：只OCR识别并更新计划书详情，不更新Base64<br>'
+                  '• 支持最大 <strong>20MB</strong> 的PDF文件'
+                  '</div>',
+        widget=forms.FileInput(attrs={
+            'accept': 'application/pdf',
+            'style': 'margin-top: 10px; padding: 8px; border: 2px dashed #2196F3; border-radius: 4px; background: #f5f5f5;'
+        })
+    )
+
+    ocr_only = forms.BooleanField(
+        required=False,
+        initial=False,
+        widget=forms.HiddenInput()
+    )
+
+    class Meta:
+        model = InsuranceProduct
+        fields = '__all__'
+
+    def clean_plan_pdf(self):
+        """验证上传的PDF文件"""
+        pdf_file = self.cleaned_data.get('plan_pdf')
+        if pdf_file:
+            # 检查文件类型
+            if not pdf_file.name.lower().endswith('.pdf'):
+                raise forms.ValidationError('只支持PDF文件格式')
+
+            # 检查文件大小（最大20MB）
+            max_size = 20 * 1024 * 1024  # 20MB
+            if pdf_file.size > max_size:
+                raise forms.ValidationError(f'文件大小超过限制（最大20MB），当前文件大小：{pdf_file.size / (1024*1024):.2f}MB')
+
+        return pdf_file
+
+
+@admin.register(ProductPlan)
+class ProductPlanAdmin(admin.ModelAdmin):
+    """产品缴费方案管理"""
     list_display = [
-        'product_name',
-        'company_display',
+        'plan_name',
+        'product_display',
         'payment_period_display',
         'annual_premium_display',
-        'is_withdrawal',
+        'total_premium_display',
+        'irr_display',
+        'is_recommended',
         'is_active',
         'sort_order',
         'created_at'
     ]
-    list_filter = ['company', 'is_withdrawal', 'is_active', 'payment_period', 'created_at']
-    search_fields = ['product_name', 'company__name', 'description']
-    ordering = ['company__sort_order', 'sort_order', 'product_name']
+    list_filter = ['product__company', 'payment_period', 'is_recommended', 'is_active', 'created_at']
+    search_fields = ['plan_name', 'product__product_name', 'product__company__name', 'plan_description']
+    ordering = ['product', 'sort_order', 'payment_period']
+    readonly_fields = ['total_premium', 'created_at', 'updated_at']
 
     fieldsets = (
         ('基本信息', {
-            'fields': ('company', 'product_name', 'description'),
-            'description': '产品的基本信息'
-        }),
-        ('保费信息', {
-            'fields': ('payment_period', 'annual_premium'),
-            'description': '缴费年期和年缴金额'
+            'fields': ('product', 'plan_name', 'payment_period', 'annual_premium', 'total_premium'),
+            'description': '缴费方案的基本信息。总保费会自动计算（年缴金额 × 缴费年期）'
         }),
         ('退保价值表', {
             'fields': ('surrender_value_table',),
             'description': '<strong>退保发还金额表配置</strong><br>'
                          '• 格式: JSON数组<br>'
-                         '• 示例: [{"year": 1, "guaranteed": 0, "non_guaranteed": 0, "total": 0}, {"year": 2, "guaranteed": 2500, "non_guaranteed": 19200, "total": 21700}]<br>'
+                         '• 示例: [{"year": 1, "guaranteed": 0, "non_guaranteed": 0, "total": 0, "premiums_paid": 10000}, ...]<br>'
                          '• 字段说明：<br>'
                          '  - year: 保单年度<br>'
                          '  - guaranteed: 保证现金价值<br>'
                          '  - non_guaranteed: 非保证现金价值<br>'
-                         '  - total: 总现金价值（预期价值）',
+                         '  - total: 总现金价值（预期价值）<br>'
+                         '  - premiums_paid: 已缴保费（累计）',
             'classes': ('collapse',)
         }),
         ('身故赔偿表', {
             'fields': ('death_benefit_table',),
             'description': '<strong>身故保险赔偿表配置</strong><br>'
                          '• 格式: JSON数组<br>'
-                         '• 示例: [{"year": 1, "benefit": 100000}, {"year": 2, "benefit": 150000}]<br>'
+                         '• 示例: [{"year": 1, "benefit": 100000}, {"year": 2, "benefit": 150000}, ...]<br>'
                          '• 字段说明：<br>'
                          '  - year: 保单年度<br>'
                          '  - benefit: 身故赔偿金额',
+            'classes': ('collapse',)
+        }),
+        ('投资回报', {
+            'fields': ('irr_rate',),
+            'description': 'IRR（内部回报率）- 年化收益率百分比'
+        }),
+        ('方案说明', {
+            'fields': ('plan_description', 'is_recommended'),
+            'description': '该缴费方案的详细说明和推荐标记'
+        }),
+        ('状态与排序', {
+            'fields': ('is_active', 'sort_order')
+        }),
+        ('时间信息', {
+            'fields': ('created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def product_display(self, obj):
+        """产品显示"""
+        if obj.product:
+            return format_html(
+                '<strong>{}</strong><br><span style="color: #666; font-size: 0.85em;">{}</span>',
+                obj.product.product_name,
+                obj.product.company.name
+            )
+        return '-'
+    product_display.short_description = '所属产品'
+
+    def payment_period_display(self, obj):
+        """缴费年期显示"""
+        return format_html(
+            '<span style="color: #3498db; font-weight: bold; font-size: 1.1em;">{} 年</span>',
+            obj.payment_period
+        )
+    payment_period_display.short_description = '缴费年期'
+
+    def annual_premium_display(self, obj):
+        """年缴金额显示"""
+        formatted = f'{obj.annual_premium:,.0f}'
+        return format_html(
+            '<span style="color: #27ae60; font-weight: bold;">¥{}</span>',
+            formatted
+        )
+    annual_premium_display.short_description = '年缴金额'
+
+    def total_premium_display(self, obj):
+        """总保费显示"""
+        if obj.total_premium:
+            formatted = f'{obj.total_premium:,.0f}'
+            return format_html(
+                '<span style="color: #e67e22; font-weight: bold;">¥{}</span>',
+                formatted
+            )
+        return '-'
+    total_premium_display.short_description = '总保费'
+
+    def irr_display(self, obj):
+        """IRR显示"""
+        if obj.irr_rate:
+            color = '#27ae60' if obj.irr_rate >= 3 else '#f39c12'
+            return format_html(
+                '<span style="color: {}; font-weight: bold;">{}%</span>',
+                color,
+                obj.irr_rate
+            )
+        return '-'
+    irr_display.short_description = 'IRR'
+
+    actions = ['mark_as_recommended', 'unmark_as_recommended']
+
+    def mark_as_recommended(self, request, queryset):
+        """标记为推荐方案"""
+        count = queryset.update(is_recommended=True)
+        self.message_user(request, f'成功标记 {count} 个方案为推荐方案')
+    mark_as_recommended.short_description = '⭐ 标记为推荐方案'
+
+    def unmark_as_recommended(self, request, queryset):
+        """取消推荐标记"""
+        count = queryset.update(is_recommended=False)
+        self.message_user(request, f'成功取消 {count} 个方案的推荐标记')
+    unmark_as_recommended.short_description = '⭐ 取消推荐标记'
+
+
+@admin.register(InsuranceProduct)
+class InsuranceProductAdmin(admin.ModelAdmin):
+    """保险公司产品管理"""
+    form = InsuranceProductForm
+
+    list_display = [
+        'product_name',
+        'company_display',
+        'product_category',
+        'supported_payment_periods',
+        'is_withdrawal',
+        'is_active',
+        'sort_order',
+        'created_at'
+    ]
+    list_filter = ['company', 'is_withdrawal', 'is_active', 'product_category', 'created_at']
+    search_fields = ['product_name', 'company__name', 'description']
+    ordering = ['company__sort_order', 'sort_order', 'product_name']
+    actions = ['reocr_plan_details']
+
+    fieldsets = (
+        ('基本信息', {
+            'fields': ('company', 'product_name', 'product_category', 'supported_payment_periods', 'url', 'description'),
+            'description': '产品的基本信息<br>'
+                         '• <strong>支持的缴费年期</strong>: 列出产品支持的所有缴费年期选项，多个用逗号分隔，例如：1年,2年,5年,趸缴<br>'
+                         '• <strong>官方产品链接</strong>: 产品的官方网站链接地址'
+        }),
+        ('计划书内容', {
+            'fields': ('plan_pdf', 'plan_summary', 'plan_details', 'plan_pdf_base64', 'product_research_report'),
+            'description': '<strong>计划书内容配置</strong><br>'
+                         '• <strong style="color: #e67e22;">plan_pdf</strong>: 上传PDF计划书，AI将自动解析并更新Base64和详情<br>'
+                         '• plan_summary: 产品概要，简短介绍（200-500字）<br>'
+                         '• plan_details: 完整详情，包括条款、保障范围、理赔流程等（可由AI自动生成）<br>'
+                         '• plan_pdf_base64: 计划书PDF的Base64编码（用于前端下载或预览）<br>'
+                         '• product_research_report: 产品研究报告，深度分析内容',
             'classes': ('collapse',)
         }),
         ('产品特性', {
@@ -957,6 +1136,138 @@ class InsuranceProductAdmin(admin.ModelAdmin):
     )
 
     readonly_fields = ['created_at', 'updated_at']
+    inlines = [ProductPlanInline]  # 添加缴费方案内联编辑
+
+    def save_model(self, request, obj, form, change):
+        """重写保存方法，处理PDF上传和AI解析"""
+        pdf_file = form.cleaned_data.get('plan_pdf')
+        ocr_only = form.cleaned_data.get('ocr_only', False)
+
+        if pdf_file:
+            # 导入必要的模块
+            import base64
+            from .pdf_views import extract_pdf_text_from_bytes
+
+            try:
+                # 读取PDF文件内容
+                pdf_file.seek(0)  # 重置文件指针到开始位置
+                pdf_content = pdf_file.read()
+
+                # 1. 将PDF转换为Base64编码（始终执行）
+                pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
+                obj.plan_pdf_base64 = pdf_base64
+
+                self.message_user(
+                    request,
+                    f'✅ PDF已转换为Base64编码（{len(pdf_base64)}字符）',
+                    level='success'
+                )
+
+                # 2. 使用pdfplumber提取全文（替代Gemini OCR）
+                self.message_user(
+                    request,
+                    f'正在提取PDF文本内容: {pdf_file.name}，请稍候...',
+                    level='info'
+                )
+
+                result = extract_pdf_text_from_bytes(pdf_content)
+
+                if result.get('success'):
+                    # 提取成功，将内容保存到plan_details字段
+                    extracted_text = result.get('full_text', '')
+                    obj.plan_details = extracted_text
+
+                    self.message_user(
+                        request,
+                        f'✅ PDF处理完成！Base64编码和计划书详情已更新（共{result["total_pages"]}页，{result["total_chars"]}个字符）',
+                        level='success'
+                    )
+                else:
+                    # 提取失败
+                    error_msg = result.get('error', '未知错误')
+                    self.message_user(
+                        request,
+                        f'⚠️ PDF文本提取失败: {error_msg}（Base64已保存）',
+                        level='warning'
+                    )
+
+            except Exception as e:
+                self.message_user(
+                    request,
+                    f'❌ 处理PDF时发生错误: {str(e)}',
+                    level='error'
+                )
+
+        # 调用父类的保存方法
+        super().save_model(request, obj, form, change)
+
+    def reocr_plan_details(self, request, queryset):
+        """重新提取计划书详情"""
+        import base64
+        from .pdf_views import extract_pdf_text_from_bytes
+
+        # 筛选有PDF Base64编码的产品
+        products_with_pdf = queryset.exclude(plan_pdf_base64='')
+
+        if not products_with_pdf.exists():
+            self.message_user(
+                request,
+                '❌ 所选产品中没有已上传的PDF文件',
+                level='error'
+            )
+            return
+
+        success_count = 0
+        fail_count = 0
+        skip_count = 0
+
+        for product in products_with_pdf:
+            try:
+                # 检查是否有PDF Base64编码
+                if not product.plan_pdf_base64:
+                    skip_count += 1
+                    continue
+
+                # 解码Base64为PDF字节
+                pdf_bytes = base64.b64decode(product.plan_pdf_base64)
+
+                # 使用pdfplumber提取全文
+                result = extract_pdf_text_from_bytes(pdf_bytes)
+
+                if result.get('success'):
+                    # 更新plan_details字段
+                    extracted_text = result.get('full_text', '')
+                    product.plan_details = extracted_text
+                    product.save(update_fields=['plan_details'])
+                    success_count += 1
+                else:
+                    fail_count += 1
+
+            except Exception as e:
+                fail_count += 1
+                continue
+
+        # 显示结果消息
+        if success_count > 0:
+            self.message_user(
+                request,
+                f'✅ 成功重新提取 {success_count} 个产品的计划书详情',
+                level='success'
+            )
+        if fail_count > 0:
+            self.message_user(
+                request,
+                f'⚠️ {fail_count} 个产品文本提取失败',
+                level='warning'
+            )
+        if skip_count > 0:
+            self.message_user(
+                request,
+                f'ℹ️ {skip_count} 个产品没有PDF文件，已跳过',
+                level='info'
+            )
+
+    reocr_plan_details.short_description = '🔄 重新提取计划书详情（pdfplumber）'
 
     def company_display(self, obj):
         """保险公司显示"""
@@ -971,6 +1282,8 @@ class InsuranceProductAdmin(admin.ModelAdmin):
 
     def payment_period_display(self, obj):
         """缴费年期显示"""
+        if obj.payment_period is None:
+            return format_html('<span style="color: #95a5a6;">-</span>')
         return format_html(
             '<span style="color: #3498db; font-weight: bold;">{} 年</span>',
             obj.payment_period
@@ -979,6 +1292,8 @@ class InsuranceProductAdmin(admin.ModelAdmin):
 
     def annual_premium_display(self, obj):
         """年缴金额显示"""
+        if obj.annual_premium is None:
+            return format_html('<span style="color: #95a5a6;">-</span>')
         formatted_amount = f'{obj.annual_premium:,.2f}'
         return format_html(
             '<span style="color: #27ae60; font-weight: bold;">¥{}</span>',
@@ -1073,7 +1388,7 @@ class CustomerCaseAdmin(admin.ModelAdmin):
     """客户保险配置案例管理"""
     list_display = [
         'title',
-        'life_stage',
+        'tags_display',
         'customer_age_display',
         'annual_income_display',
         'total_premium_display',
@@ -1082,15 +1397,15 @@ class CustomerCaseAdmin(admin.ModelAdmin):
         'sort_order',
         'created_at'
     ]
-    list_filter = ['life_stage', 'is_active', 'created_at']
+    list_filter = ['is_active', 'created_at']
     search_fields = ['title', 'case_description', 'family_structure', 'insurance_needs']
-    ordering = ['life_stage', 'sort_order', 'id']
+    ordering = ['sort_order', 'id']
     readonly_fields = ['created_at', 'updated_at']
 
     fieldsets = (
         ('基本信息', {
-            'fields': ('title', 'life_stage', 'is_active', 'sort_order'),
-            'description': '案例的基本标识信息'
+            'fields': ('title', 'tags', 'is_active', 'sort_order'),
+            'description': '案例的基本标识信息。标签格式示例：["扶幼保障期", "高收入", "海外资产配置"]'
         }),
         ('客户资料', {
             'fields': ('customer_age', 'annual_income', 'family_structure'),
@@ -1124,6 +1439,18 @@ class CustomerCaseAdmin(admin.ModelAdmin):
             'classes': ('collapse',)
         }),
     )
+
+    def tags_display(self, obj):
+        """标签显示"""
+        if not obj.tags:
+            return format_html('<span style="color: #999;">无标签</span>')
+
+        tags_html = ' '.join([
+            f'<span style="background-color: #3498db; color: white; padding: 2px 8px; border-radius: 3px; margin-right: 4px; font-size: 11px;">{tag}</span>'
+            for tag in obj.tags
+        ])
+        return format_html(tags_html)
+    tags_display.short_description = '标签'
 
     def customer_age_display(self, obj):
         """年龄显示"""
@@ -1172,3 +1499,99 @@ class CustomerCaseAdmin(admin.ModelAdmin):
         count = queryset.update(is_active=False)
         self.message_user(request, f'成功禁用 {count} 个案例')
     deactivate_cases.short_description = '❌ 禁用选中的案例'
+
+
+@admin.register(ProductPromotion)
+class ProductPromotionAdmin(admin.ModelAdmin):
+    """产品宣传材料管理"""
+    list_display = [
+        'title',
+        'product_display',
+        'content_type',
+        'published_date',
+        'is_active',
+        'sort_order',
+        'view_count',
+        'created_at'
+    ]
+    list_filter = ['content_type', 'is_active', 'published_date', 'created_at']
+    search_fields = ['title', 'description', 'product__product_name', 'product__company__name']
+    ordering = ['product', 'sort_order', '-published_date']
+    readonly_fields = ['view_count', 'created_at', 'updated_at']
+
+    fieldsets = (
+        ('基本信息', {
+            'fields': ('product', 'title', 'content_type', 'description')
+        }),
+        ('内容', {
+            'fields': ('url', 'pdf_file', 'pdf_base64', 'thumbnail'),
+            'description': '<strong>内容配置</strong><br>'
+                         '• <strong>链接地址</strong>: 外部链接（新闻、视频等）<br>'
+                         '• <strong>PDF文件</strong>: 上传PDF小册子<br>'
+                         '• <strong>PDF Base64编码</strong>: 用于前端预览下载<br>'
+                         '• <strong>缩略图</strong>: 宣传材料的封面图'
+        }),
+        ('显示设置', {
+            'fields': ('published_date', 'is_active', 'sort_order')
+        }),
+        ('统计信息', {
+            'fields': ('view_count', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    def product_display(self, obj):
+        """显示产品信息"""
+        if obj.product:
+            return format_html(
+                '<span style="font-size: 1.1em;">{}</span> {}',
+                obj.product.company.icon or '🏢',
+                obj.product.product_name
+            )
+        return '-'
+    product_display.short_description = '所属产品'
+
+
+@admin.register(CompanyNews)
+class CompanyNewsAdmin(admin.ModelAdmin):
+    """公司新闻与宣传管理"""
+    list_display = ['title', 'company_display', 'content_type', 'published_date', 'is_featured', 'is_active', 'view_count', 'sort_order']
+    list_filter = ['content_type', 'is_active', 'is_featured', 'published_date', 'company']
+    search_fields = ['title', 'description', 'content', 'company__name']
+    ordering = ['-is_featured', 'sort_order', '-published_date']
+    list_editable = ['is_featured', 'is_active', 'sort_order']
+    date_hierarchy = 'published_date'
+
+    fieldsets = (
+        ('基本信息', {
+            'fields': ('company', 'title', 'content_type', 'description')
+        }),
+        ('内容', {
+            'fields': ('content', 'url'),
+            'description': '正文内容（支持HTML）或外部链接'
+        }),
+        ('文件与图片', {
+            'fields': ('pdf_file', 'thumbnail'),
+            'description': 'PDF文件和缩略图'
+        }),
+        ('显示设置', {
+            'fields': ('published_date', 'is_active', 'is_featured', 'sort_order')
+        }),
+        ('统计信息', {
+            'fields': ('view_count', 'created_at', 'updated_at'),
+            'classes': ('collapse',)
+        }),
+    )
+
+    readonly_fields = ['view_count', 'created_at', 'updated_at']
+
+    def company_display(self, obj):
+        """显示公司信息"""
+        if obj.company:
+            return format_html(
+                '<span style="font-size: 1.1em;">{}</span> {}',
+                obj.company.icon or '🏢',
+                obj.company.name
+            )
+        return '-'
+    company_display.short_description = '所属公司'

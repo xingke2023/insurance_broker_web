@@ -14,9 +14,24 @@ function CompanyComparison() {
   const [showComparison, setShowComparison] = useState(false);
   const [comparisonData, setComparisonData] = useState(null);
   const [customAgesInput, setCustomAgesInput] = useState(() => {
+    // 新的默认年度设置
+    const defaultValue = '1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,30,35,40,45,50,60,70,80,90,100';
+
     // 从localStorage读取保存的自定义年度
     const saved = localStorage.getItem('customAgesInput');
-    return saved || '1,2,3,4,5,6,7,8,9,10,15,20,25,30,35,40,60,80,100';
+
+    // ⚠️ 强制更新旧设置：如果localStorage中是旧值，则使用新默认值并更新localStorage
+    const oldDefaultValue = '1,2,3,4,5,6,7,8,9,10,15,20,25,30,35,40,60,80,100';
+    if (saved === oldDefaultValue) {
+      console.log('🔄 [CompanyComparison] 检测到旧的默认年度设置，强制更新为新值');
+      localStorage.setItem('customAgesInput', defaultValue);
+      return defaultValue;
+    }
+
+    console.log('🔍 [CompanyComparison] 初始化年度设置:');
+    console.log('   localStorage 中的值:', saved);
+    console.log('   最终使用的值:', saved || defaultValue);
+    return saved || defaultValue;
   });
   const [useCustomAges, setUseCustomAges] = useState(() => {
     // 从localStorage读取是否使用自定义年度
@@ -53,8 +68,38 @@ function CompanyComparison() {
   // 年份选择器相关状态
   const [showYearSelector, setShowYearSelector] = useState(false);
   const [selectedYears, setSelectedYears] = useState(() => {
-    // 从customAgesInput解析出已选年份
-    return customAgesInput.split(',').map(y => parseInt(y.trim())).filter(y => !isNaN(y));
+    // 从customAgesInput解析出已选年份（支持范围格式）
+    const inputs = customAgesInput
+      .replace(/，/g, ',')
+      .split(',')
+      .map(item => item.trim())
+      .filter(item => item);
+
+    const parsedYears = new Set();
+    inputs.forEach(input => {
+      // 检查是否为范围格式 (例如: "1-5" 或 "1 - 5")
+      if (input.includes('-')) {
+        const parts = input.split('-').map(p => p.trim()).filter(p => p);
+        if (parts.length === 2) {
+          const start = parseInt(parts[0]);
+          const end = parseInt(parts[1]);
+          if (!isNaN(start) && !isNaN(end) && start <= end) {
+            // 展开范围内的所有年度
+            for (let year = start; year <= end; year++) {
+              parsedYears.add(year);
+            }
+          }
+        }
+      } else {
+        // 单个年度
+        const year = parseInt(input);
+        if (!isNaN(year)) {
+          parsedYears.add(year);
+        }
+      }
+    });
+
+    return Array.from(parsedYears).sort((a, b) => a - b);
   });
   const availableYears = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30, 35, 40, 60, 80, 100];
   const [yearRangeInput, setYearRangeInput] = useState(''); // 范围输入框的值
@@ -193,9 +238,49 @@ function CompanyComparison() {
     };
   }, []);
 
+  // 监听缴费年期变化，重新获取公司数据
+  useEffect(() => {
+    fetchCompanies(paymentYears);
+  }, [paymentYears]);
+
   // 保存自定义年度到localStorage
   useEffect(() => {
+    console.log('💾 [CompanyComparison] 保存年度设置到 localStorage:', customAgesInput);
     localStorage.setItem('customAgesInput', customAgesInput);
+  }, [customAgesInput]);
+
+  // 同步 customAgesInput 到 selectedYears（支持范围格式）
+  useEffect(() => {
+    const inputs = customAgesInput
+      .replace(/，/g, ',')
+      .split(',')
+      .map(item => item.trim())
+      .filter(item => item);
+
+    const parsedYears = new Set();
+    inputs.forEach(input => {
+      // 检查是否为范围格式
+      if (input.includes('-')) {
+        const parts = input.split('-').map(p => p.trim()).filter(p => p);
+        if (parts.length === 2) {
+          const start = parseInt(parts[0]);
+          const end = parseInt(parts[1]);
+          if (!isNaN(start) && !isNaN(end) && start <= end) {
+            for (let year = start; year <= end; year++) {
+              parsedYears.add(year);
+            }
+          }
+        }
+      } else {
+        const year = parseInt(input);
+        if (!isNaN(year)) {
+          parsedYears.add(year);
+        }
+      }
+    });
+
+    const newSelectedYears = Array.from(parsedYears).sort((a, b) => a - b);
+    setSelectedYears(newSelectedYears);
   }, [customAgesInput]);
 
   // 保存是否使用自定义年度到localStorage
@@ -447,7 +532,7 @@ function CompanyComparison() {
       return;
     }
     if (paymentAmount < 2000) {
-      alert('年缴保费最低为2000元');
+      alert('年缴保费最低为2000美元');
       return;
     }
 
@@ -643,7 +728,7 @@ function CompanyComparison() {
   // 应用范围选择
   const handleApplyYearRange = () => {
     if (!yearRangeInput.trim()) {
-      alert('请输入年度范围，例如：1-4 或 1-4,10,20-25');
+      alert('请输入年度或范围，例如：1-4,10,20-40（表示20到40年每年都显示）');
       return;
     }
 
@@ -701,8 +786,46 @@ function CompanyComparison() {
       alert('请至少选择一个年度');
       return;
     }
-    setCustomAgesInput(selectedYears.join(','));
+
+    // 只在年份确实发生变化时才更新（避免覆盖用户的范围格式输入）
+    const newAgesInput = selectedYears.join(',');
+
+    // 比较展开后的年份数组是否相同
+    const currentExpandedYears = customAgesInput
+      .replace(/，/g, ',')
+      .split(',')
+      .map(item => item.trim())
+      .filter(item => item)
+      .flatMap(input => {
+        if (input.includes('-')) {
+          const parts = input.split('-').map(p => p.trim()).filter(p => p);
+          if (parts.length === 2) {
+            const start = parseInt(parts[0]);
+            const end = parseInt(parts[1]);
+            if (!isNaN(start) && !isNaN(end) && start <= end) {
+              return Array.from({length: end - start + 1}, (_, i) => start + i);
+            }
+          }
+        }
+        const year = parseInt(input);
+        return !isNaN(year) ? [year] : [];
+      })
+      .sort((a, b) => a - b);
+
+    const isDifferent = JSON.stringify(currentExpandedYears) !== JSON.stringify(selectedYears);
+
+    if (isDifferent) {
+      console.log('🔄 [年份选择器] 更新年度:', newAgesInput);
+      setCustomAgesInput(newAgesInput);
+    }
+
     setShowYearSelector(false);
+
+    // 自动触发对比
+    // 使用 setTimeout 确保 state 更新后再执行对比
+    setTimeout(() => {
+      handleCompareCompanies();
+    }, 100);
   };
 
   // 打开年份选择器
@@ -880,7 +1003,11 @@ function CompanyComparison() {
                     <span className="hidden sm:inline">下载</span>
                   </button>
                   <button
-                    onClick={() => setShowColumnSelector(true)}
+                    onClick={() => {
+                      console.log('🔓 [自定义显示项] 打开弹窗');
+                      console.log('   当前 customAgesInput:', customAgesInput);
+                      setShowColumnSelector(true);
+                    }}
                     className="flex items-center gap-2 px-3 py-2 bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all text-sm font-semibold text-white whitespace-nowrap"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -904,7 +1031,7 @@ function CompanyComparison() {
                     <span className="text-white text-xs font-semibold whitespace-nowrap">{customerGender === 'male' ? '男' : '女'}</span>
                     <span className="text-white/40 hidden sm:inline">|</span>
                     <span className="text-white/80 text-[10px] whitespace-nowrap">年缴保费</span>
-                    <span className="text-white text-xs font-semibold whitespace-nowrap">{paymentAmount.toLocaleString('zh-CN')} 元</span>
+                    <span className="text-white text-xs font-semibold whitespace-nowrap">{paymentAmount.toLocaleString('zh-CN')} 美元</span>
                     <span className="text-white/40 hidden sm:inline">|</span>
                     <span className="text-white/80 text-[10px] whitespace-nowrap">缴费年限</span>
                     <span className="text-white text-xs font-semibold whitespace-nowrap">{paymentYears} 年</span>
@@ -1116,25 +1243,25 @@ function CompanyComparison() {
             <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
               <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
                 {/* 标题栏 */}
-                <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-4 py-3 flex items-center justify-between">
+                <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-4 py-2 flex items-center justify-between">
                   <div className="w-8"></div>
-                  <h3 className="text-lg font-bold text-white text-center flex-1">自定义显示项</h3>
+                  <h3 className="text-base font-bold text-white text-center flex-1">自定义显示项</h3>
                   <button
                     onClick={() => setShowColumnSelector(false)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/20 transition-all"
+                    className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-white/20 transition-all"
                     aria-label="关闭"
                   >
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
                 </div>
 
                 {/* 操作按钮栏 */}
-                <div className="px-4 py-2 bg-gray-50 flex items-center justify-between gap-2 border-b border-gray-200">
+                <div className="px-3 py-1.5 bg-gray-50 flex items-center justify-between gap-2 border-b border-gray-200">
                   <button
                     onClick={handleSelectAllColumns}
-                    className="px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-xs font-semibold"
+                    className="px-2.5 py-1 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-xs font-semibold"
                   >
                     全选
                   </button>
@@ -1144,12 +1271,12 @@ function CompanyComparison() {
                 </div>
 
                 {/* 列选项 */}
-                <div className="p-3 space-y-3">
+                <div className="p-2.5 space-y-2">
                   {/* 数据列分组 */}
                   <div>
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 px-1">数据列</div>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 px-1">数据列</div>
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-2.5 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.guaranteed}
@@ -1161,7 +1288,7 @@ function CompanyComparison() {
                         </div>
                       </label>
 
-                      <label className="flex items-center gap-3 p-2.5 bg-orange-50 rounded-lg hover:bg-orange-100 transition-all cursor-pointer">
+                      <label className="flex items-center gap-2.5 p-2 bg-orange-50 rounded-lg hover:bg-orange-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.nonGuaranteed}
@@ -1173,7 +1300,7 @@ function CompanyComparison() {
                         </div>
                       </label>
 
-                      <label className="flex items-center gap-3 p-2.5 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all cursor-pointer">
+                      <label className="flex items-center gap-2.5 p-2 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.total}
@@ -1185,7 +1312,7 @@ function CompanyComparison() {
                         </div>
                       </label>
 
-                      <label className="flex items-center gap-3 p-2.5 bg-purple-50 rounded-lg hover:bg-purple-100 transition-all cursor-pointer">
+                      <label className="flex items-center gap-2.5 p-2 bg-purple-50 rounded-lg hover:bg-purple-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.simpleReturn}
@@ -1197,7 +1324,7 @@ function CompanyComparison() {
                         </div>
                       </label>
 
-                      <label className="flex items-center gap-3 p-2.5 bg-green-50 rounded-lg hover:bg-green-100 transition-all cursor-pointer">
+                      <label className="flex items-center gap-2.5 p-2 bg-green-50 rounded-lg hover:bg-green-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.irr}
@@ -1212,13 +1339,13 @@ function CompanyComparison() {
                   </div>
 
                   {/* 分隔线 */}
-                  <div className="border-t-2 border-dashed border-gray-300"></div>
+                  <div className="border-t border-dashed border-gray-300"></div>
 
                   {/* 其他选项分组 */}
                   <div>
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 px-1">其他选项</div>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-3 p-2.5 bg-red-50 rounded-lg hover:bg-red-100 transition-all cursor-pointer">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 px-1">其他选项</div>
+                    <div className="space-y-1.5">
+                      <label className="flex items-center gap-2.5 p-2 bg-red-50 rounded-lg hover:bg-red-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.breakEven}
@@ -1230,7 +1357,7 @@ function CompanyComparison() {
                         </div>
                       </label>
 
-                      <label className="flex items-center gap-3 p-2.5 bg-pink-50 rounded-lg hover:bg-pink-100 transition-all cursor-pointer">
+                      <label className="flex items-center gap-2.5 p-2 bg-pink-50 rounded-lg hover:bg-pink-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.highlightBest}
@@ -1243,13 +1370,91 @@ function CompanyComparison() {
                       </label>
                     </div>
                   </div>
+
+                  {/* 分隔线 */}
+                  <div className="border-t border-dashed border-gray-300"></div>
+
+                  {/* 年度选择 */}
+                  <div>
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 px-1 flex items-center justify-between">
+                      <span>年度选择</span>
+                      <button
+                        onClick={() => {
+                          const defaultValue = '1,2,3,4,5,6,7,8,9,10,15,20,25,30,35,40,60,80,100';
+                          setCustomAgesInput(defaultValue);
+                          console.log('🔄 [年度选择] 重置为默认值:', defaultValue);
+                        }}
+                        className="text-[10px] text-blue-600 hover:text-blue-800 font-semibold"
+                      >
+                        重置
+                      </button>
+                    </div>
+                    <div className="p-2 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-lg border border-blue-200">
+                      <label className="text-xs font-semibold text-gray-900 mb-1 block flex items-center gap-1.5">
+                        <svg className="w-3.5 h-3.5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                        </svg>
+                        自定义年度
+                      </label>
+                      <div className="relative">
+                        <input
+                          type="text"
+                          value={customAgesInput}
+                          onChange={(e) => {
+                            console.log('✏️ [输入框] 用户输入年度:', e.target.value);
+                            setCustomAgesInput(e.target.value);
+                          }}
+                          placeholder="例如: 1-20 或 1,5,10,80,100"
+                          className="w-full px-2.5 py-1.5 pr-14 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white"
+                        />
+                        <button
+                          onClick={() => {
+                            setCustomAgesInput('');
+                            console.log('🗑️ [年度选择] 清空输入框');
+                          }}
+                          className="absolute right-1 top-1/2 -translate-y-1/2 px-2 py-0.5 text-[10px] text-gray-500 hover:text-red-600 font-semibold"
+                        >
+                          清空
+                        </button>
+                      </div>
+                      <div className="mt-1.5 space-y-0.5">
+                        <div className="text-xs text-gray-600 flex items-start gap-1">
+                          <span className="text-blue-600 font-bold text-[10px]">•</span>
+                          <span className="text-[11px]"><span className="font-semibold">范围：</span>1-20</span>
+                        </div>
+                        <div className="text-xs text-gray-600 flex items-start gap-1">
+                          <span className="text-blue-600 font-bold text-[10px]">•</span>
+                          <span className="text-[11px]"><span className="font-semibold">单个：</span>1,5,10,80,100</span>
+                        </div>
+                        <div className="text-xs text-gray-600 flex items-start gap-1">
+                          <span className="text-blue-600 font-bold text-[10px]">•</span>
+                          <span className="text-[11px]"><span className="font-semibold">混合：</span>1-10,20,30-40,100</span>
+                        </div>
+                        <div className="mt-2 pt-1.5 border-t border-blue-200">
+                          <div className="text-[10px] text-gray-500">
+                            💡 修改后点击"确认"即可保存
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
 
                 {/* 底部按钮 */}
-                <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-2">
+                <div className="px-3 py-2 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-2">
                   <button
-                    onClick={() => setShowColumnSelector(false)}
-                    className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg text-sm font-semibold"
+                    onClick={() => {
+                      console.log('✅ [自定义显示项] 点击确认按钮');
+                      console.log('   当前 customAgesInput:', customAgesInput);
+                      setShowColumnSelector(false);
+                      // 自动触发对比（如果已选择产品）
+                      if (selectedIds.length > 0) {
+                        setTimeout(() => {
+                          handleCompareCompanies();
+                        }, 100);
+                      }
+                    }}
+                    className="px-4 py-1.5 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg text-sm font-semibold"
                   >
                     确认
                   </button>
@@ -1293,7 +1498,7 @@ function CompanyComparison() {
               港險儲蓄分紅型產品收益數據統計表
               <span className="text-xl md:text-2xl lg:text-3xl">（2025年12月）</span>
             </h1>
-            <p className="text-xs md:text-sm text-gray-500 mt-2">数据最新更新日期 09/12/2025</p>
+            <p className="text-xs md:text-sm text-gray-500 mt-2">数据最新更新日期 29/01/2026</p>
           </div>
 
           {/* 提示文字与对比按钮 */}
@@ -1368,7 +1573,7 @@ function CompanyComparison() {
                   >
                     {paymentAmount.toLocaleString('zh-CN')}
                   </div>
-                  <span className="text-gray-600 font-medium text-sm md:text-base">元</span>
+                  <span className="text-gray-600 font-medium text-sm md:text-base">美元</span>
                 </div>
 
                 {/* 缴费年限 */}
@@ -1423,8 +1628,8 @@ function CompanyComparison() {
               // 富卫公司使用稍小的logo
               const isFWD = company.name === '富卫' || company.name === 'FWD' || company.name.includes('富卫');
               const logoClasses = isFWD
-                ? "w-20 h-14 md:w-36 md:h-20"
-                : "w-32 h-20 md:w-52 md:h-32";
+                ? "w-20 h-12 md:w-36 md:h-16"
+                : "w-32 h-16 md:w-52 md:h-26";
 
               return (
               <div
@@ -1479,7 +1684,7 @@ function CompanyComparison() {
                       return (
                         <div className={`text-xs md:text-base ${currentTheme === 'luxury' ? 'text-amber-400' : 'text-indigo-700'} font-bold px-0.5 leading-tight space-y-0.5`} style={{ fontFamily: "'Microsoft YaHei', '微软雅黑', sans-serif" }}>
                           {productNames.map((name, idx) => (
-                            <div key={idx} className="line-clamp-2">{name}</div>
+                            <div key={idx} className="break-words">{name}</div>
                           ))}
                         </div>
                       );
@@ -1488,7 +1693,7 @@ function CompanyComparison() {
                     // 否则显示默认产品名称（兜底）
                     if (company.flagship_product) {
                       return (
-                        <p className={`text-xs md:text-base ${currentTheme === 'luxury' ? 'text-amber-400' : 'text-indigo-700'} font-bold line-clamp-2 px-0.5 leading-tight`} style={{ fontFamily: "'Microsoft YaHei', '微软雅黑', sans-serif" }}>
+                        <p className={`text-xs md:text-base ${currentTheme === 'luxury' ? 'text-amber-400' : 'text-indigo-700'} font-bold break-words px-0.5 leading-tight`} style={{ fontFamily: "'Microsoft YaHei', '微软雅黑', sans-serif" }}>
                           {company.flagship_product}
                         </p>
                       );
@@ -1519,7 +1724,8 @@ function CompanyComparison() {
           </div>
         )}
 
-        {/* 自定义显示年度 */}
+        {/* 自定义显示年度 - 已隐藏，年度选择已移至"自定义显示项"弹窗 */}
+        {false && (
         <div className="mt-3 md:mt-4 bg-white/95 backdrop-blur-xl rounded-3xl shadow-[0_12px_40px_rgba(0,0,0,0.15),0_4px_12px_rgba(0,0,0,0.1)] p-2 md:p-4 border-2 border-indigo-200/50">
           <div className="flex items-center gap-2 md:gap-4">
             <label className="flex items-center gap-2 md:gap-3 cursor-pointer px-2 md:px-3 py-1 md:py-1.5 rounded-xl hover:bg-blue-50/50 transition-all bg-white/50">
@@ -1537,7 +1743,7 @@ function CompanyComparison() {
                   type="text"
                   value={customAgesInput}
                   onChange={(e) => setCustomAgesInput(e.target.value)}
-                  placeholder="输入年度，用逗号分隔（如：1,5,10,20）"
+                  placeholder="输入年度，支持范围（如：1,5,10,20-40）"
                   className="w-full pl-2 md:pl-4 pr-[90px] md:pr-[130px] py-2 md:py-2.5 border border-gray-200/80 bg-white/90 rounded-xl text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-400/50 focus:border-blue-400/50 transition-all text-sm md:text-base shadow-sm"
                 />
                 <button
@@ -1556,6 +1762,7 @@ function CompanyComparison() {
             )}
           </div>
         </div>
+        )}
       </div>
 
       {/* 计算器模态框 */}
@@ -1697,7 +1904,7 @@ function CompanyComparison() {
                       handleApplyYearRange();
                     }
                   }}
-                  placeholder="输入范围，如：1-4"
+                  placeholder="输入年度或范围，如：1-4,10,20-40"
                   className="flex-1 px-2 py-1.5 md:px-4 md:py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-indigo-500 text-xs md:text-sm"
                 />
                 <button

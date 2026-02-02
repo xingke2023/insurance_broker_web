@@ -223,6 +223,7 @@ def get_pending_documents(request):
 def get_saved_documents(request):
     """
     获取已保存的文档列表（仅返回当前用户的文档）
+    优化版本：只返回列表页需要的基本信息，不加载完整表格数据
     """
     try:
         # 从认证的用户获取 user_id（安全的方式）
@@ -237,30 +238,19 @@ def get_saved_documents(request):
         user_id = request.user.id
         logger.info(f"📊 获取文档列表 - user: {request.user.username}, user_id: {user_id}")
 
-        # 只返回当前登录用户的文档
-        documents = PlanDocument.objects.filter(user_id=user_id).order_by('-created_at')[:50]
+        # 只返回当前登录用户的文档（不限制数量，由前端分页）
+        # 使用 only() 优化查询，只加载需要的字段
+        documents = PlanDocument.objects.filter(user_id=user_id).only(
+            'id', 'file_name', 'file_path', 'file_size', 'status',
+            'insured_name', 'insured_age', 'insured_gender',
+            'insurance_product', 'insurance_company',
+            'sum_assured', 'annual_premium', 'payment_years', 'total_premium', 'insurance_period',
+            'created_at', 'updated_at'
+        ).order_by('-created_at')
         logger.info(f"📊 找到 {documents.count()} 个文档")
 
         data = []
         for doc in documents:
-            # 统计年度价值表记录数
-            table_count = len(doc.table.get('years', [])) if doc.table else 0
-
-            # 解析table1和table2 JSON字符串为对象
-            table1_data = None
-            if doc.table1:
-                try:
-                    table1_data = json.loads(doc.table1)
-                except (json.JSONDecodeError, TypeError):
-                    table1_data = None
-
-            table2_data = None
-            if doc.table2:
-                try:
-                    table2_data = json.loads(doc.table2)
-                except (json.JSONDecodeError, TypeError):
-                    table2_data = None
-
             data.append({
                 'id': doc.id,
                 'file_name': doc.file_name,
@@ -268,7 +258,7 @@ def get_saved_documents(request):
                 'file_size': doc.file_size,
                 'status': doc.status,
 
-                # 受保人信息
+                # 受保人信息 - 直接使用数据库字段（列表页不需要完整解析）
                 'insured_name': doc.insured_name,
                 'insured_age': doc.insured_age,
                 'insured_gender': doc.insured_gender,
@@ -283,22 +273,6 @@ def get_saved_documents(request):
                 'payment_years': doc.payment_years,
                 'total_premium': str(doc.total_premium) if doc.total_premium else None,
                 'insurance_period': doc.insurance_period,
-
-                # 年度价值表数据
-                'table': doc.table if doc.table else {},
-                'table_record_count': table_count,
-
-                # 基本计划退保价值表（table1）- 返回对象而非字符串
-                'table1': table1_data,
-
-                # 无忧选退保价值表（table2）- 返回对象而非字符串
-                'table2': table2_data,
-
-                # 计划书概要（简要版，只返回summary字段）
-                'summary': doc.summary if doc.summary else {},
-
-                # 内容统计
-                'content_length': len(doc.content) if doc.content else 0,
 
                 # 时间信息
                 'created_at': doc.created_at.isoformat(),
@@ -330,13 +304,20 @@ def get_document_detail(request, document_id):
         table_count = len(doc.table.get('years', [])) if doc.table else 0
 
         # 解析table1和table2 JSON字符串为对象
-        # 优先从AnnualValue数据库获取（HTML解析器存储在这里）
+        # 优先使用table1 JSON字段（包含完整的字段信息），其次才从AnnualValue构建
         table1_data = None
-        if doc.annual_values.exists():
-            # 从AnnualValue构建table1数据结构
+        if doc.table1:
+            # 优先：从table1字段获取（完整的字段，如10列数据）
+            try:
+                table1_data = json.loads(doc.table1)
+            except (json.JSONDecodeError, TypeError):
+                table1_data = None
+
+        # 如果table1字段为空，从AnnualValue数据库构建（简化版，只有4个字段）
+        if not table1_data and doc.annual_values.exists():
             annual_values = doc.annual_values.all().order_by('policy_year')
             table1_data = {
-                'table_name': '保单年度价值表',
+                'table_name': '保单年度价值表（从AnnualValue构建）',
                 'fields': ['保单年度终结', '保证现金价值', '非保证现金价值', '总现金价值'],
                 'data': []
             }
@@ -347,12 +328,6 @@ def get_document_detail(request, document_id):
                     str(av.non_guaranteed_cash_value) if av.non_guaranteed_cash_value is not None else '-',
                     str(av.total_cash_value) if av.total_cash_value is not None else '-'
                 ])
-        elif doc.table1:
-            # 如果没有AnnualValue，尝试从table1字段获取（旧方式）
-            try:
-                table1_data = json.loads(doc.table1)
-            except (json.JSONDecodeError, TypeError):
-                table1_data = None
 
         table2_data = None
         if doc.table2:
@@ -807,19 +782,39 @@ def chat_with_document(request, document_id):
                 'message': '消息不能为空'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        # 获取Gemini API密钥
-        api_key = os.getenv('GEMINI_API_KEY')
-        if not api_key:
+        # 检查PDF文件是否存在
+        if not document.file_path:
             return Response({
                 'status': 'error',
-                'message': 'Gemini API密钥未配置'
-            }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+                'message': 'PDF文件不存在'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        pdf_path = document.file_path.path
+        if not os.path.exists(pdf_path):
+            return Response({
+                'status': 'error',
+                'message': f'PDF文件不存在: {pdf_path}'
+            }, status=status.HTTP_404_NOT_FOUND)
+
+        # 读取PDF文件
+        import pathlib
+        pdf_file = pathlib.Path(pdf_path)
+        pdf_bytes = pdf_file.read_bytes()
+        logger.info(f"📄 PDF文件读取成功，大小: {len(pdf_bytes)} 字节")
+
+        # 使用轮询API Key获取Gemini客户端
+        from .gemini_service import get_next_api_key
+        api_keys = get_next_api_key()
+
+        # 使用第一个API Key（轮询已在get_next_api_key中完成）
+        api_key_name, api_key = api_keys[0]
+        logger.info(f"🔑 使用{api_key_name}进行对话")
 
         # 初始化Gemini客户端
         client = genai.Client(api_key=api_key)
 
-        # 构建系统提示词，包含完整文档内容
-        system_prompt = f"""你是一个专业的保险计划书助手。你正在帮助用户理解以下保险计划书的内容。
+        # 构建系统提示词
+        system_prompt = f"""你是一个专业的保险计划书助手。你正在帮助用户理解这份保险计划书的内容。
 
 计划书基本信息：
 - 受保人：{document.insured_name or '未提取'}
@@ -832,33 +827,31 @@ def chat_with_document(request, document_id):
 - 缴费期：{document.payment_years or '未提取'}
 - 保障期：{document.insurance_period or '未提取'}
 
-计划书完整OCR识别内容：
-{document.content if document.content else '无OCR内容'}
-
 重要提示：
 - 年龄和保单年度是不同的概念。例如：客户3岁投保，第1保单年度对应4岁，那么80岁对应的是第77保单年度（80-3=77）
 - 当用户询问"80岁"时，需要根据投保年龄换算成对应的保单年度
 - 当用户询问"第80年度"时，这是指保单年度，不是年龄
 
-请根据以上完整的计划书内容回答用户的问题。如果用户询问的信息在文档中没有，请明确告知。回答要专业、准确、简洁。你可以引用文档中的具体内容来支持你的回答。"""
+请根据完整的PDF计划书内容回答用户的问题。如果用户询问的信息在文档中没有，请明确告知。回答要专业、准确、简洁。你可以引用文档中的具体内容来支持你的回答。"""
 
         # 构建对话历史（Gemini格式）
-        # Gemini使用 system_instruction 而不是 system role
         # 只保留最近的10轮对话（20条消息：10条用户+10条助手）
         MAX_HISTORY_MESSAGES = 20
         filtered_history = []
 
-        for msg in history:
-            if msg.get('role') in ['user', 'assistant']:
-                # 跳过欢迎消息
-                if msg.get('role') == 'assistant' and '我是计划书助手' in msg.get('content', ''):
-                    continue
-                # Gemini使用 'model' 而不是 'assistant'
-                role = 'model' if msg.get('role') == 'assistant' else 'user'
-                filtered_history.append({
-                    "role": role,
-                    "parts": [{"text": msg['content']}]
-                })
+        # 处理历史消息（如果有）
+        if history and len(history) > 1:
+            for msg in history:
+                if msg.get('role') in ['user', 'assistant']:
+                    # 跳过欢迎消息
+                    if msg.get('role') == 'assistant' and '我是计划书助手' in msg.get('content', ''):
+                        continue
+                    # Gemini使用 'model' 而不是 'assistant'
+                    role = 'model' if msg.get('role') == 'assistant' else 'user'
+                    filtered_history.append({
+                        "role": role,
+                        "parts": [{"text": msg['content']}]
+                    })
 
         # 只取最近的消息
         recent_history = filtered_history[-MAX_HISTORY_MESSAGES:] if len(filtered_history) > MAX_HISTORY_MESSAGES else filtered_history
@@ -868,6 +861,42 @@ def chat_with_document(request, document_id):
             "role": "user",
             "parts": [{"text": user_message}]
         })
+
+        # 【关键改动】始终在第一条消息前添加PDF文件作为背景材料
+        # 确保Gemini在每次对话中都能访问完整的PDF内容
+        if recent_history:
+            # 如果第一条消息是用户消息，在其前面插入PDF
+            if recent_history[0]["role"] == "user":
+                # 在第一条用户消息的parts前添加PDF
+                pdf_intro = {
+                    "role": "user",
+                    "parts": [
+                        types.Part.from_bytes(data=pdf_bytes, mime_type='application/pdf'),
+                        types.Part.from_text(text="这是保险计划书PDF文件作为背景材料。")
+                    ]
+                }
+                model_ack = {
+                    "role": "model",
+                    "parts": [{"text": "我已经阅读了这份保险计划书PDF文件。"}]
+                }
+                # 插入到最前面
+                recent_history.insert(0, model_ack)
+                recent_history.insert(0, pdf_intro)
+            else:
+                # 如果第一条是model消息，直接在最前面添加PDF
+                pdf_intro = {
+                    "role": "user",
+                    "parts": [
+                        types.Part.from_bytes(data=pdf_bytes, mime_type='application/pdf'),
+                        types.Part.from_text(text="这是保险计划书PDF文件作为背景材料。")
+                    ]
+                }
+                model_ack = {
+                    "role": "model",
+                    "parts": [{"text": "我已经阅读了这份保险计划书PDF文件。"}]
+                }
+                recent_history.insert(0, model_ack)
+                recent_history.insert(0, pdf_intro)
 
         logger.info(f"💬 历史消息数: {len(filtered_history)}, 总消息数: {len(recent_history)}")
 
@@ -879,9 +908,9 @@ def chat_with_document(request, document_id):
 
             def generate_stream():
                 try:
-                    # 使用Gemini API进行流式生成
+                    # 使用Gemini API进行流式生成（使用支持PDF的模型）
                     response = client.models.generate_content_stream(
-                        model='gemini-2.0-flash-exp',  # 使用 Gemini 3 Flash Preview (2.0-flash-exp)
+                        model='gemini-3-flash-preview',  # Gemini 3 Flash Preview 支持多模态（PDF）
                         contents=recent_history,
                         config=types.GenerateContentConfig(
                             system_instruction=system_prompt,
@@ -910,7 +939,7 @@ def chat_with_document(request, document_id):
         # 非流式输出（保留原有逻辑）
         else:
             response = client.models.generate_content(
-                model='gemini-2.0-flash-exp',  # 使用 Gemini 3 Flash Preview (2.0-flash-exp)
+                model='gemini-3-flash-preview',  # Gemini 3 Flash Preview 支持多模态（PDF）
                 contents=recent_history,
                 config=types.GenerateContentConfig(
                     system_instruction=system_prompt,
@@ -1572,10 +1601,16 @@ def upload_pdf_async(request):
         logger.info(f"   文件大小: {uploaded_file.size} bytes")
         logger.info(f"   保存路径: {plan_doc.file_path.path}")
 
-        # 启动Celery异步OCR任务（从第一个任务开始：OCR识别）
-        from .tasks import ocr_document_task
-        ocr_document_task.apply_async(args=[plan_doc.id], countdown=1)
-        logger.info(f"✅ OCR任务已调度，文档ID: {plan_doc.id}")
+        # 启动Celery异步任务（只执行新流程）
+        from .tasks import extract_table_data_direct_task
+
+        # 任务1：原有的OCR识别流程（已禁用）
+        # ocr_document_task.apply_async(args=[plan_doc.id], countdown=1)
+        # logger.info(f"✅ OCR任务已调度（保留原有流程），文档ID: {plan_doc.id}")
+
+        # 任务2：新增的直接表格提取任务（使用Gemini直接分析PDF）
+        extract_table_data_direct_task.apply_async(args=[plan_doc.id], countdown=1)
+        logger.info(f"✅ 直接表格提取任务已调度（新流程），文档ID: {plan_doc.id}")
 
         return Response({
             'status': 'success',
@@ -1727,17 +1762,14 @@ def reextract_tablecontent(request, document_id):
 @permission_classes([IsAuthenticated])
 def reextract_table1(request, document_id):
     """
-    重新提取保单价值表（改进版：使用HTML解析器）
+    重新提取退保价值表（与Celery步骤3相同的逻辑）
 
-    新逻辑：
-    1. 检查是否有PlanTable记录
-    2. 使用HTML解析器从PlanTable直接提取年度价值数据
-    3. 保存到AnnualValue数据库
+    逻辑：
+    1. 检查是否有content和tablesummary字段
+    2. 调用 Gemini API 根据tablesummary推荐提取表格
+    3. 保存到table1字段（JSON格式）
 
-    优势：
-    - 不依赖Gemini API（避免输出截断问题）
-    - 速度更快
-    - 支持任意行数的表格
+    与 extract_table1_task 使用完全相同的逻辑
 
     路径参数：
         document_id: 文档ID
@@ -1747,12 +1779,12 @@ def reextract_table1(request, document_id):
             "status": "success" | "error",
             "message": "提示信息",
             "data": {
-                "count": 记录数,
-                "year_range": "年度范围"
+                "table_name": "表格名称",
+                "row_count": 行数
             }
         }
     """
-    from .html_table_parser import extract_and_save_annual_values
+    from .tasks import extract_table_from_content_based_on_summary
 
     try:
         # 获取文档
@@ -1771,42 +1803,79 @@ def reextract_table1(request, document_id):
                 'message': '无权操作此文档'
             }, status=status.HTTP_403_FORBIDDEN)
 
-        # 检查PlanTable是否存在
-        plan_tables_count = doc.plan_tables.count()
-        if plan_tables_count == 0:
+        # 检查content字段
+        if not doc.content:
             return Response({
                 'status': 'error',
-                'message': '文档没有PlanTable记录，无法提取保单价值表。请先完成表格分析。'
+                'message': 'OCR内容为空，无法提取退保价值表。请先完成OCR识别。'
             }, status=status.HTTP_400_BAD_REQUEST)
 
-        logger.info(f"📊 开始从文档 {document_id} 的 {plan_tables_count} 个PlanTable中提取年度价值数据")
-
-        # 使用HTML解析器提取并保存数据
-        result = extract_and_save_annual_values(doc)
-
-        if result['success']:
-            logger.info(f"✅ 文档 {document_id} 的保单价值表提取成功：{result['count']} 条记录")
-
+        # 检查tablesummary字段
+        if not doc.tablesummary:
             return Response({
-                'status': 'success',
-                'message': result['message'],
-                'data': {
-                    'document_id': doc.id,
-                    'count': result['count'],
-                    'year_range': result.get('year_range', '')
-                }
-            }, status=status.HTTP_200_OK)
+                'status': 'error',
+                'message': '表格分析结果为空，无法提取退保价值表。请先完成表格分析。'
+            }, status=status.HTTP_400_BAD_REQUEST)
+
+        logger.info(f"📊 开始从文档 {document_id} 重新提取退保价值表（table1）")
+        logger.info(f"   content长度: {len(doc.content)} 字符")
+        logger.info(f"   tablesummary长度: {len(doc.tablesummary)} 字符")
+
+        # 调用 Gemini API 根据tablesummary推荐提取表格（与步骤3相同的逻辑）
+        logger.info("🔍 调用 Gemini API 根据tablesummary推荐提取表格数据...")
+        table1_json = extract_table_from_content_based_on_summary(doc.content, doc.tablesummary)
+
+        if table1_json:
+            # 保存到数据库
+            doc.table1 = table1_json
+            doc.save(update_fields=['table1'])
+
+            logger.info(f"✅ 退保价值表已保存，数据长度: {len(table1_json)} 字符")
+
+            # 解析JSON以显示摘要
+            try:
+                import json
+                table1_data = json.loads(table1_json)
+                table_name = table1_data.get('table_name', '')
+                row_count = table1_data.get('row_count', 0)
+                data_count = len(table1_data.get('data', []))
+
+                logger.info(f"📋 表格名称: {table_name}")
+                logger.info(f"📊 总行数: {row_count}")
+                logger.info(f"📊 数据条数: {data_count}")
+
+                return Response({
+                    'status': 'success',
+                    'message': f'成功提取退保价值表：{table_name}',
+                    'data': {
+                        'document_id': doc.id,
+                        'table_name': table_name,
+                        'row_count': row_count,
+                        'data_count': data_count
+                    }
+                }, status=status.HTTP_200_OK)
+            except json.JSONDecodeError as e:
+                logger.error(f"❌ JSON解析失败: {e}")
+                return Response({
+                    'status': 'success',
+                    'message': '退保价值表已保存，但JSON格式可能有问题',
+                    'data': {
+                        'document_id': doc.id,
+                        'data_length': len(table1_json)
+                    }
+                }, status=status.HTTP_200_OK)
         else:
-            logger.warning(f"⚠️ 文档 {document_id} 的保单价值表提取失败：{result.get('error', '未知错误')}")
+            logger.warning("⚠️ 未提取到退保价值表数据")
+            doc.table1 = ''
+            doc.save(update_fields=['table1'])
 
             return Response({
                 'status': 'error',
-                'message': result['message'],
-                'error': result.get('error', '')
+                'message': '未能提取到退保价值表数据，可能是表格格式不符合要求或没有合适的表格'
             }, status=status.HTTP_400_BAD_REQUEST)
 
     except Exception as e:
-        logger.error(f"❌ 触发保单价值表重新提取失败: {e}")
+        logger.error(f"❌ 重新提取退保价值表失败: {e}")
         import traceback
         logger.error(traceback.format_exc())
         return Response({

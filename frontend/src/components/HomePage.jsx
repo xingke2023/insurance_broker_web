@@ -14,7 +14,8 @@ import {
   Mic,
   ScanLine,
   FileEdit,
-  PenTool
+  PenTool,
+  BookOpen
 } from 'lucide-react';
 
 function HomePage() {
@@ -41,29 +42,24 @@ function HomePage() {
   // 工具分类
   const toolCategories = [
     {
-      category: '保单与计划书',
+      category: '产品与计划书',
       tools: [
-        { name: '计划书分析和比对工具', icon: Folder, action: () => isAuthenticated ? onNavigate('plan-management') : setShowLogin(true), color: 'from-blue-500 via-blue-600 to-indigo-700' },
-        { name: '计划书制作工具', icon: FileText, action: () => isAuthenticated ? onNavigate('plan-builder') : setShowLogin(true), color: 'from-indigo-500 via-purple-600 to-purple-700' },
-        { name: '港险产品比对工具', icon: FileText, action: () => onNavigate('company-comparison'), color: 'from-purple-500 via-purple-600 to-pink-700' },
+        { name: '港险产品对比', icon: FileText, action: () => onNavigate('company-comparison'), color: 'from-purple-500 via-purple-600 to-pink-700' },
+        { name: '港险产品目录', icon: Folder, action: () => onNavigate('insurance-products'), color: 'from-cyan-500 via-blue-600 to-indigo-700' },
       ]
     },
     {
-      category: '个人IP与营销',
+      category: '港险顾问与港险案例分析',
       tools: [
-        { name: '打造个人IP形象', icon: Sparkles, action: () => isAuthenticated ? onNavigate('ip-image-generator') : setShowLogin(true), color: 'from-pink-500 via-rose-600 to-rose-700' },
-        { name: '宣传图制作(基于个人IP)', icon: Image, action: () => isAuthenticated ? onNavigate('content-image-generator') : setShowLogin(true), color: 'from-rose-500 via-red-600 to-red-700' },
-        { name: '视频制作', icon: Video, action: () => isAuthenticated ? onNavigate('video-projects') : setShowLogin(true), color: 'from-red-500 via-orange-600 to-orange-700' },
-        { name: '个性化语音制作', icon: Mic, action: () => isAuthenticated ? onNavigate('text-to-speech') : setShowLogin(true), color: 'from-orange-500 via-amber-600 to-amber-700' },
-        { name: '公众号写作及排版工具', icon: PenTool, action: () => window.open('https://write.xingke888.com/editor', '_blank'), color: 'from-amber-500 via-yellow-600 to-yellow-700' },
+        { name: '港险顾问', icon: Sparkles, action: () => isAuthenticated ? onNavigate('customer-cases') : setShowLogin(true), color: 'from-blue-500 via-cyan-600 to-teal-700' },
+        { name: '港险案例汇编', icon: BookOpen, action: () => onNavigate('customer-case-library'), color: 'from-teal-500 via-emerald-600 to-green-700' },
       ]
     },
     {
-      category: '办公工具',
+      category: '港险销售赋能工具',
       tools: [
-        { name: '我的图片库', icon: Folder, action: () => isAuthenticated ? onNavigate('media-library') : setShowLogin(true), color: 'from-emerald-500 via-green-600 to-green-700' },
-        { name: '产品海报分析工具', icon: ScanLine, action: () => isAuthenticated ? onNavigate('poster-analyzer') : setShowLogin(true), color: 'from-green-500 via-teal-600 to-teal-700' },
-        { name: 'PDF页脚擦除工具', icon: FileEdit, action: () => isAuthenticated ? onNavigate('pdf-footer-remover') : setShowLogin(true), color: 'from-teal-500 via-cyan-600 to-cyan-700' },
+        { name: '计划书分析', icon: Folder, action: () => isAuthenticated ? onNavigate('plan-management') : setShowLogin(true), color: 'from-blue-500 via-blue-600 to-indigo-700' },
+        { name: '计划书制作', icon: FileText, action: () => isAuthenticated ? onNavigate('plan-builder') : setShowLogin(true), color: 'from-purple-500 via-purple-600 to-pink-700' },
       ]
     }
   ];

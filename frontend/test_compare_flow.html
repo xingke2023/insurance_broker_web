@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>测试对比流程</title>
+</head>
+<body>
+  <h1>测试数据流程</h1>
+  <script>
+    // 1. 测试轻量级API
+    fetch('http://localhost:8017/api/insurance-companies/products-list/?payment_periods=1,2,5')
+      .then(r => r.json())
+      .then(data => {
+        console.log('=== 轻量级API ===');
+        console.log('公司数:', data.data.length);
+        const aia = data.data.find(c => c.code === 'aia');
+        console.log('友邦5年期产品:', aia.products_by_period['5']);
+      });
+
+    // 2. 测试完整API
+    fetch('http://localhost:8017/api/insurance-companies/standard-comparison/?payment_period=5')
+      .then(r => r.json())
+      .then(data => {
+        console.log('=== 完整API ===');
+        console.log('公司数:', data.data.length);
+        const aia = data.data.find(c => c.code === 'aia');
+        console.log('友邦产品数:', aia.products.length);
+        console.log('第一个产品:', aia.products[0].product_name);
+        console.log('有standard_data:', !!aia.products[0].standard_data);
+      });
+  </script>
+</body>
+</html>

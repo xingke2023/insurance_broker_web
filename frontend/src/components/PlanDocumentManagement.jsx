@@ -15,28 +15,42 @@ function PlanDocumentManagement() {
   const [deleting, setDeleting] = useState(false);
   const [showComparison, setShowComparison] = useState(false);
   const [comparisonData, setComparisonData] = useState(null);
-  const [customAgesInput, setCustomAgesInput] = useState('1,2,3,4,5,6,7,8,9,10,65岁,75岁,90岁,100岁');
+  const [customAgesInput, setCustomAgesInput] = useState('1,2,3,4,5,6,7,8,9,10-100');
   const [useCustomAges, setUseCustomAges] = useState(true);
   const [documentProgress, setDocumentProgress] = useState({}); // 存储每个文档的处理进度
   const [showProgressModal, setShowProgressModal] = useState(false); // 显示进度模态框
   const [progressModalDocId, setProgressModalDocId] = useState(null); // 当前查看进度的文档ID
 
-  // 自定义显示列相关状态
-  const [showColumnSelector, setShowColumnSelector] = useState(false);
-  const [visibleColumns, setVisibleColumns] = useState(() => {
-    const saved = localStorage.getItem('planManagementVisibleColumns');
-    if (saved) {
-      return JSON.parse(saved);
+  // 分页相关状态
+  const [currentPage, setCurrentPage] = useState(1);
+  const [pageSize] = useState(50); // 每页50条
+
+  // 固定显示的字段（不需要自定义）
+  // policy_year 和 age 在左侧统一显示，每个产品只显示这3个字段
+  const visibleColumns = {
+    total_premiums_paid: true,                   // 已缴保费
+    withdrawal_amount: true,                     // 提取总额
+    surrender_value_after_withdrawal: true       // 現金提取後的退保價值
+  };
+
+  // 辅助函数：安全地将字符串或数字转换为整数，移除千位分隔符
+  const safeParseInt = (value) => {
+    if (value === null || value === undefined) return null;
+    if (typeof value === 'number') return Math.floor(value);
+    if (typeof value === 'string') {
+      // 移除千位分隔符（逗号）和空格
+      const cleaned = value.replace(/,/g, '').replace(/\s/g, '');
+      const parsed = parseInt(cleaned, 10);
+      return isNaN(parsed) ? null : parsed;
     }
-    // 默认显示所有列
-    return {
-      premiumsPaid: true,     // 已缴保费
-      guaranteed: true,        // 保证价值
-      total: true,             // 预期价值
-      simpleReturn: true,      // 年化单利
-      irr: true                // IRR
-    };
-  });
+    return null;
+  };
+
+  // 辅助函数：格式化数字显示（添加千位分隔符）
+  const formatNumber = (value) => {
+    const num = safeParseInt(value);
+    return num !== null ? num.toLocaleString('zh-CN') : '-';
+  };
 
   useEffect(() => {
     // 设置页面标题
@@ -197,34 +211,6 @@ function PlanDocumentManagement() {
     });
   };
 
-  // 保存显示列设置到localStorage
-  useEffect(() => {
-    localStorage.setItem('planManagementVisibleColumns', JSON.stringify(visibleColumns));
-  }, [visibleColumns]);
-
-  // 切换列显示
-  const handleToggleColumn = (columnKey) => {
-    setVisibleColumns(prev => ({
-      ...prev,
-      [columnKey]: !prev[columnKey]
-    }));
-  };
-
-  // 全选列
-  const handleSelectAllColumns = () => {
-    setVisibleColumns({
-      premiumsPaid: true,
-      guaranteed: true,
-      total: true,
-      simpleReturn: true,
-      irr: true
-    });
-  };
-
-  // 计算显示的列数
-  const getVisibleColumnCount = () => {
-    return Object.values(visibleColumns).filter(v => v).length;
-  };
 
   // 计算年化单利（与DocumentContentEditor保持一致）
   const calculateSimpleAnnualizedReturn = (totalValue, actualInvestment, holdingYears) => {
@@ -325,15 +311,15 @@ function PlanDocumentManagement() {
 
       if (doc.table1 && typeof doc.table1 === 'object') {
         console.log('table1.keys:', Object.keys(doc.table1));
-        console.log('table1.years:', doc.table1.years);
-        console.log('years是数组:', Array.isArray(doc.table1.years));
-        console.log('years长度:', doc.table1.years?.length);
+        console.log('table1.data:', doc.table1.data);
+        console.log('data是数组:', Array.isArray(doc.table1.data));
+        console.log('data长度:', doc.table1.data?.length);
       }
 
       // 判断table1是否有值：
       // 1. table1不为null/undefined
       // 2. table1不是空字符串
-      // 3. 如果是对象，需要有years数组且长度>0
+      // 3. 如果是对象，需要有data数组且长度>1（第一行是字段名，需要至少有数据行）
       let hasTable = false;
 
       if (doc.table1) {
@@ -342,10 +328,10 @@ function PlanDocumentManagement() {
           hasTable = doc.table1.trim().length > 0;
           console.log('table1是字符串，长度:', doc.table1.trim().length);
         } else if (typeof doc.table1 === 'object') {
-          // 如果是对象，检查years数组
-          hasTable = doc.table1.years &&
-                    Array.isArray(doc.table1.years) &&
-                    doc.table1.years.length > 0;
+          // 如果是对象，检查data数组（需要>1因为第一行是字段名）
+          hasTable = doc.table1.data &&
+                    Array.isArray(doc.table1.data) &&
+                    doc.table1.data.length > 1;
           console.log('table1是对象，hasTable:', hasTable);
         }
       }
@@ -367,11 +353,21 @@ function PlanDocumentManagement() {
     // 动态计算所有文档的实际年龄范围
     let allAges = new Set();
     selectedDocs.forEach(doc => {
-      const years = doc.table1?.years || [];
+      const tableData = doc.table1?.data || [];
+      const fields = doc.table1?.fields || [];
       const currentAge = doc.insured_age || 0;
 
-      years.forEach(y => {
-        const policyYear = y.policy_year;
+      // 第一行是英文字段名，从第二行开始才是数据
+      const dataRows = tableData.slice(1);
+
+      // 从data数组的第一行（英文字段名）找到policy_year字段的索引
+      const englishFields = tableData[0] || [];
+      const policyYearIndex = englishFields.findIndex(f =>
+        f === 'policy_year' || (typeof f === 'string' && f.toLowerCase().includes('policy_year'))
+      );
+
+      dataRows.forEach(row => {
+        const policyYear = policyYearIndex >= 0 ? row[policyYearIndex] : row[0];
 
         // 判断是年龄格式还是保单年度格式
         if (typeof policyYear === 'string' && /[岁歲]/.test(policyYear)) {
@@ -402,8 +398,24 @@ function PlanDocumentManagement() {
       const customAges = new Set();
 
       inputs.forEach(input => {
+        // 检查是否为范围格式 (例如: "1-9" 或 "20-40" 或 "1 - 6")
+        if (input.includes('-') && !/[岁歲]/.test(input)) {
+          const parts = input.split('-').map(p => p.trim()).filter(p => p);
+          if (parts.length === 2) {
+            const start = parseInt(parts[0]);
+            const end = parseInt(parts[1]);
+            if (!isNaN(start) && !isNaN(end) && start <= end) {
+              // 展开范围内的所有年度（保单年度）
+              for (let policyYear = start; policyYear <= end; policyYear++) {
+                const policyYearKey = `policyYear_${policyYear}`;
+                customAges.add(policyYearKey);
+                ageDisplayMap[policyYearKey] = { type: 'policyYear', value: policyYear };
+              }
+            }
+          }
+        }
         // 检查是否带"岁"或"歲"
-        if (/[岁歲]/.test(input)) {
+        else if (/[岁歲]/.test(input)) {
           // 带"岁"的是年龄，直接提取数字
           const match = input.match(/\d+/);
           if (match) {
@@ -464,12 +476,38 @@ function PlanDocumentManagement() {
 
     // 提取对比数据
     const comparison = selectedDocs.map(doc => {
-      const years = doc.table1?.years || [];
+      const tableData = doc.table1?.data || [];
       const ageData = {};
+
+      // 第一行是英文字段名，从第二行开始才是数据
+      const englishFields = tableData[0] || [];
+      const dataRows = tableData.slice(1);
+
+      // 从英文字段名行找到各字段的索引
+      const fieldIndexes = {
+        policy_year: englishFields.findIndex(f => f === 'policy_year'),
+        age: englishFields.findIndex(f => f === 'age'),
+        total_premiums_paid: englishFields.findIndex(f => f === 'total_premiums_paid'),
+        withdrawal_amount: englishFields.findIndex(f => f === 'withdrawal_amount'),
+        surrender_value_after_withdrawal: englishFields.findIndex(f => f === 'surrender_value_after_withdrawal')
+      };
+
+      console.log('📊 文档:', doc.file_name);
+      console.log('tableData长度:', tableData.length);
+      console.log('英文字段:', englishFields);
+      console.log('字段索引:', fieldIndexes);
+      console.log('数据行数:', dataRows.length);
+      if (dataRows.length > 0) {
+        console.log('第一行数据:', dataRows[0]);
+        console.log('最后一行数据:', dataRows[dataRows.length - 1]);
+      }
+
+      // 如果没找到字段，尝试使用默认索引（假设字段顺序）
+      if (fieldIndexes.policy_year === -1) fieldIndexes.policy_year = 0;
 
       targetAges.forEach(targetAgeOrKey => {
         const currentAge = doc.insured_age || 0;
-        let yearData;
+        let rowData = null;
 
         // 判断是保单年度键还是年龄
         if (typeof targetAgeOrKey === 'string' && targetAgeOrKey.startsWith('policyYear_')) {
@@ -477,11 +515,17 @@ function PlanDocumentManagement() {
           const policyYearValue = parseInt(targetAgeOrKey.split('_')[1]);
 
           // 在数据中查找对应的保单年度
-          yearData = years.find(y => {
-            const policyYear = y.policy_year;
-            // 纯数字匹配保单年度
+          rowData = dataRows.find(row => {
+            const policyYear = row[fieldIndexes.policy_year];
+            // 纯数字匹配保单年度（支持数字和字符串数字）
             if (typeof policyYear === 'number') {
               return policyYear === policyYearValue;
+            }
+            if (typeof policyYear === 'string') {
+              const yearNum = parseInt(policyYear.replace(/,/g, ''));
+              if (!isNaN(yearNum)) {
+                return yearNum === policyYearValue;
+              }
             }
             return false;
           });
@@ -491,8 +535,8 @@ function PlanDocumentManagement() {
           const targetPolicyYear = targetAge - currentAge;
 
           // 遍历所有记录，尝试两种匹配方式
-          yearData = years.find(y => {
-            const policyYear = y.policy_year;
+          rowData = dataRows.find(row => {
+            const policyYear = row[fieldIndexes.policy_year];
 
             // 方式1：检查是否是年龄格式（带"岁"或"歲"）
             if (typeof policyYear === 'string' && /[岁歲]/.test(policyYear)) {
@@ -501,20 +545,47 @@ function PlanDocumentManagement() {
               return age === targetAge;
             }
 
-            // 方式2：纯数字都按保单年度匹配
+            // 方式2：纯数字都按保单年度匹配（支持number和string）
             if (typeof policyYear === 'number') {
               return policyYear === targetPolicyYear;
+            }
+
+            // 方式3：字符串数字按保单年度匹配
+            if (typeof policyYear === 'string') {
+              const yearNum = parseInt(policyYear.replace(/,/g, ''));
+              if (!isNaN(yearNum)) {
+                return yearNum === targetPolicyYear;
+              }
             }
 
             return false;
           });
         }
 
+        // 将行数据转换为对象格式
+        let yearData = null;
+        if (rowData) {
+          yearData = {
+            policy_year: rowData[fieldIndexes.policy_year],
+            age: fieldIndexes.age >= 0 ? rowData[fieldIndexes.age] : undefined,
+            total_premiums_paid: fieldIndexes.total_premiums_paid >= 0 ? rowData[fieldIndexes.total_premiums_paid] : undefined,
+            withdrawal_amount: fieldIndexes.withdrawal_amount >= 0 ? rowData[fieldIndexes.withdrawal_amount] : undefined,
+            surrender_value_after_withdrawal: fieldIndexes.surrender_value_after_withdrawal >= 0 ? rowData[fieldIndexes.surrender_value_after_withdrawal] : undefined
+          };
+        }
+
         ageData[targetAgeOrKey] = {
-          guaranteed: yearData ? (yearData.guaranteed || yearData.guaranteed_cash_value) : undefined,
-          total: yearData ? yearData.total : undefined
+          policy_year: yearData ? yearData.policy_year : undefined,
+          age: yearData ? yearData.age : undefined,
+          total_premiums_paid: yearData ? yearData.total_premiums_paid : undefined,
+          withdrawal_amount: yearData ? (yearData.withdrawal_amount || 0) : 0,
+          surrender_value_after_withdrawal: yearData ? yearData.surrender_value_after_withdrawal : undefined
         };
+
+        console.log(`年龄/年度 ${targetAgeOrKey}:`, ageData[targetAgeOrKey]);
       });
+
+      console.log('最终ageData:', ageData);
 
       return {
         id: doc.id,
@@ -526,11 +597,33 @@ function PlanDocumentManagement() {
       };
     });
 
-    setComparisonData({
+    console.log('======= 最终对比数据 =======');
+    console.log('选中的文档数量:', selectedDocs.length);
+    console.log('生成的产品数量:', comparison.length);
+    console.log('目标年龄点:', targetAges);
+    console.log('目标年龄点数量:', targetAges.length);
+    comparison.forEach((product, index) => {
+      console.log(`\n产品${index + 1}:`, product.name);
+      console.log('  - ID:', product.id);
+      console.log('  - 当前年龄:', product.currentAge);
+      console.log('  - ageData键数量:', Object.keys(product.ageData).length);
+      console.log('  - ageData所有键:', Object.keys(product.ageData));
+      if (targetAges.length > 0) {
+        console.log('  - 第一个年龄点数据:', product.ageData[targetAges[0]]);
+      }
+    });
+
+    const comparisonResult = {
       products: comparison,
       targetAges,
       ageDisplayMap // 保存显示映射信息
-    });
+    };
+
+    // 暴露到window方便调试
+    window.comparisonData = comparisonResult;
+    console.log('完整对比数据已保存到 window.comparisonData');
+
+    setComparisonData(comparisonResult);
     setShowComparison(true);
   };
 
@@ -593,11 +686,27 @@ function PlanDocumentManagement() {
     return matchesSearch && matchesStatus;
   });
 
+  // 分页处理
+  const totalPages = Math.ceil(filteredDocuments.length / pageSize);
+  const startIndex = (currentPage - 1) * pageSize;
+  const endIndex = startIndex + pageSize;
+  const paginatedDocuments = filteredDocuments.slice(startIndex, endIndex);
+
+  // 当过滤条件改变时，重置到第一页
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [searchTerm, filterStatus]);
+
   // 如果正在查看产品对比
   if (showComparison && comparisonData) {
+    console.log('🔍 当前显示的产品对比数据:');
+    console.log('  - products数量:', comparisonData.products?.length);
+    console.log('  - targetAges数量:', comparisonData.targetAges?.length);
+    console.log('  - products列表:', comparisonData.products?.map(p => p.name));
+
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 via-indigo-50 to-purple-50 p-4 md:p-8">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-full mx-auto">
           {/* 返回按钮 */}
           <div className="mb-4 md:mb-6">
             <button
@@ -612,21 +721,10 @@ function PlanDocumentManagement() {
           {/* 对比表格 */}
           <div className="bg-white rounded-2xl shadow-xl overflow-hidden">
             <div className="bg-gradient-to-r from-blue-600 to-indigo-600 px-4 py-4 md:px-8 md:py-6">
-              {/* 标题和显示项按钮 */}
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex-1">
-                  <h2 className="text-xl md:text-3xl font-bold text-white">产品对比分析</h2>
-                  <p className="text-blue-100 mt-1 md:mt-2 text-sm md:text-base">对比 {comparisonData.products.length} 个产品在不同年龄的现金价值</p>
-                </div>
-                <button
-                  onClick={() => setShowColumnSelector(true)}
-                  className="flex items-center gap-2 px-3 py-2 bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all text-sm font-semibold text-white whitespace-nowrap"
-                >
-                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 17V7m0 10a2 2 0 01-2 2H5a2 2 0 01-2-2V7a2 2 0 012-2h2a2 2 0 012 2m0 10a2 2 0 002 2h2a2 2 0 002-2M9 7a2 2 0 012-2h2a2 2 0 012 2m0 10V7m0 10a2 2 0 002 2h2a2 2 0 002-2V7a2 2 0 00-2-2h-2a2 2 0 00-2 2" />
-                  </svg>
-                  <span className="hidden sm:inline">显示项</span>
-                </button>
+              {/* 标题 */}
+              <div className="mb-2">
+                <h2 className="text-xl md:text-3xl font-bold text-white">产品对比分析</h2>
+                <p className="text-blue-100 mt-1 md:mt-2 text-sm md:text-base">对比 {comparisonData.products.length} 个产品的5个核心字段</p>
               </div>
 
               {/* 自定义年龄输入框 */}
@@ -646,7 +744,7 @@ function PlanDocumentManagement() {
                       type="text"
                       value={customAgesInput}
                       onChange={(e) => setCustomAgesInput(e.target.value)}
-                      placeholder="例如: 1,2,3,33岁,65歲 (纯数字=保单年度，带岁=年龄)"
+                      placeholder="例如: 1,2,3,20-40,33岁,65歲 (支持范围，纯数字=保单年度，带岁=年龄)"
                       className="flex-1 px-3 py-2 rounded-lg text-gray-900 text-sm focus:outline-none focus:ring-2 focus:ring-white"
                     />
                     <button
@@ -680,43 +778,35 @@ function PlanDocumentManagement() {
             )}
 
             <div className="p-2 md:p-8 overflow-x-auto">
+              {console.log('🎯 渲染产品表，产品数量:', comparisonData.products.length)}
+              {comparisonData.products.forEach((p, i) => console.log(`  产品${i + 1}:`, p.name, '- ID:', p.id))}
               <table className="w-full min-w-max">
                 <thead>
                   <tr className="border-b-2 border-gray-200">
-                    <th className="px-2 md:px-4 py-2 md:py-3 text-left text-xs md:text-sm font-semibold text-gray-700 sticky left-0 bg-white z-10 border-r-2 border-gray-300">保单年度/年龄</th>
+                    <th className="px-1 md:px-2 py-2 md:py-3 text-left text-xs md:text-sm font-semibold text-gray-700 sticky left-0 bg-white z-10 border-r-2 border-gray-300 w-16 md:w-20">保单年度终结</th>
                     {comparisonData.products.map((product, index) => (
-                      <th key={product.id} className={`px-2 md:px-4 py-2 md:py-3 text-center ${index < comparisonData.products.length - 1 ? 'border-r-2 border-indigo-200' : ''}`} colSpan={getVisibleColumnCount()}>
+                      <th key={product.id} className={`px-2 md:px-4 py-2 md:py-3 text-center ${index < comparisonData.products.length - 1 ? 'border-r-2 border-indigo-200' : ''}`} colSpan={3}>
                         <div className="text-xs md:text-sm font-semibold text-gray-700 truncate" title={product.name}>{product.name}</div>
                       </th>
                     ))}
                   </tr>
                   <tr className="border-b border-gray-200 bg-gray-50">
-                    <th className="px-2 md:px-4 py-1 md:py-2 text-left text-xs font-medium text-gray-600 sticky left-0 bg-gray-50 z-10 border-r-2 border-gray-300"></th>
+                    <th className="px-1 md:px-2 py-1 md:py-2 text-left text-xs font-medium text-gray-600 sticky left-0 bg-gray-50 z-10 border-r-2 border-gray-300 w-16 md:w-20"></th>
                     {comparisonData.products.map((product, pIndex) => (
                       <React.Fragment key={`${product.id}-headers`}>
-                        {visibleColumns.premiumsPaid && (
+                        {visibleColumns.total_premiums_paid && (
                           <th className="px-2 md:px-4 py-1 md:py-2 text-center text-xs font-medium text-gray-600 whitespace-nowrap">
                             已缴保费
                           </th>
                         )}
-                        {visibleColumns.guaranteed && (
+                        {visibleColumns.withdrawal_amount && (
                           <th className="px-2 md:px-4 py-1 md:py-2 text-center text-xs font-medium text-gray-600 whitespace-nowrap">
-                            保证价值
+                            提取总额
                           </th>
                         )}
-                        {visibleColumns.total && (
-                          <th className="px-2 md:px-4 py-1 md:py-2 text-center text-xs font-medium text-gray-600 whitespace-nowrap">
-                            预期价值
-                          </th>
-                        )}
-                        {visibleColumns.simpleReturn && (
-                          <th className="px-2 md:px-4 py-1 md:py-2 text-center text-xs font-medium text-gray-600 whitespace-nowrap">
-                            年化单利
-                          </th>
-                        )}
-                        {visibleColumns.irr && (
+                        {visibleColumns.surrender_value_after_withdrawal && (
                           <th className={`px-2 md:px-4 py-1 md:py-2 text-center text-xs font-medium text-gray-600 whitespace-nowrap ${pIndex < comparisonData.products.length - 1 ? 'border-r-2 border-indigo-200' : ''}`}>
-                            IRR
+                            退保价值
                           </th>
                         )}
                       </React.Fragment>
@@ -731,71 +821,36 @@ function PlanDocumentManagement() {
                     if (displayInfo?.type === 'policyYear') {
                       // 保单年度：显示纯数字
                       displayText = displayInfo.value;
-                    } else if (displayInfo?.type === 'age') {
-                      displayText = `${ageOrKey}岁`; // 年龄：显示"XX岁"
                     } else {
-                      displayText = `${ageOrKey}岁`; // 默认显示年龄格式
+                      // 统一显示保单年度（纯数字）
+                      displayText = ageOrKey;
                     }
 
                     return (
                       <tr key={ageOrKey} className="border-b border-gray-100 hover:bg-gray-50">
-                        <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm font-medium text-gray-900 whitespace-nowrap sticky left-0 bg-white z-10 border-r-2 border-gray-300">
+                        <td className="px-1 md:px-2 py-2 md:py-3 text-xs md:text-sm font-medium text-gray-900 sticky left-0 bg-white z-10 border-r-2 border-gray-300 w-16 md:w-20 text-center">
                           {displayText}
                         </td>
                       {comparisonData.products.map((product, pIndex) => {
-                        const doc = documents.find(d => d.id === product.id);
-                        const annualPremium = doc?.annual_premium ? parseInt(doc.annual_premium) : 0;
-                        const paymentYears = doc?.payment_years ? parseInt(doc.payment_years) : 0;
-                        const totalValue = product.ageData[ageOrKey]?.total;
-
-                        // 计算持有年数
-                        let holdingYears = 0;
-                        if (displayInfo?.type === 'policyYear') {
-                          holdingYears = displayInfo.value;
-                        } else {
-                          // 年龄格式，需要计算保单年度
-                          const age = typeof ageOrKey === 'string' ? parseInt(ageOrKey.replace(/[^\d]/g, '')) : ageOrKey;
-                          holdingYears = age - product.currentAge;
-                        }
-
-                        // 计算实际投入 = 年缴保费 × min(持有年数, 缴费年数)
-                        const actualInvestment = annualPremium * Math.min(holdingYears, paymentYears);
-
-                        // 计算年化单利
-                        const simpleReturn = calculateSimpleAnnualizedReturn(totalValue, actualInvestment, holdingYears);
-
-                        // 计算IRR（使用修正版：考虑期初缴费）
-                        const irr = calculateIRR(annualPremium, paymentYears, totalValue, holdingYears);
+                        const ageData = product.ageData[ageOrKey] || {};
 
                         return (
                           <React.Fragment key={`${product.id}-${ageOrKey}`}>
-                            {visibleColumns.premiumsPaid && (
+                            {visibleColumns.total_premiums_paid && (
                               <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-orange-700 font-semibold text-center whitespace-nowrap">
-                                {actualInvestment > 0 ? actualInvestment.toLocaleString('zh-CN') : '-'}
+                                {formatNumber(ageData.total_premiums_paid)}
                               </td>
                             )}
-                            {visibleColumns.guaranteed && (
-                              <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-gray-900 font-medium text-center whitespace-nowrap">
-                                {product.ageData[ageOrKey]?.guaranteed !== undefined && product.ageData[ageOrKey]?.guaranteed !== null
-                                  ? parseInt(product.ageData[ageOrKey].guaranteed).toLocaleString('zh-CN')
-                                  : '-'}
-                              </td>
-                            )}
-                            {visibleColumns.total && (
-                              <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-indigo-900 font-medium text-center whitespace-nowrap">
-                                {product.ageData[ageOrKey]?.total !== undefined && product.ageData[ageOrKey]?.total !== null
-                                  ? parseInt(product.ageData[ageOrKey].total).toLocaleString('zh-CN')
-                                  : '-'}
-                              </td>
-                            )}
-                            {visibleColumns.simpleReturn && (
+                            {visibleColumns.withdrawal_amount && (
                               <td className="px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-purple-700 font-medium text-center whitespace-nowrap">
-                                {simpleReturn !== null ? `${simpleReturn.toFixed(2)}%` : '-'}
+                                {ageData.withdrawal_amount !== undefined && ageData.withdrawal_amount !== null
+                                  ? formatNumber(ageData.withdrawal_amount)
+                                  : '0'}
                               </td>
                             )}
-                            {visibleColumns.irr && (
-                              <td className={`px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-green-700 font-bold text-center whitespace-nowrap ${pIndex < comparisonData.products.length - 1 ? 'border-r-2 border-indigo-200' : ''}`}>
-                                {irr !== null ? `${irr.toFixed(2)}%` : '-'}
+                            {visibleColumns.surrender_value_after_withdrawal && (
+                              <td className={`px-2 md:px-4 py-2 md:py-3 text-xs md:text-sm text-indigo-900 font-bold text-center whitespace-nowrap ${pIndex < comparisonData.products.length - 1 ? 'border-r-2 border-indigo-200' : ''}`}>
+                                {formatNumber(ageData.surrender_value_after_withdrawal)}
                               </td>
                             )}
                           </React.Fragment>
@@ -804,165 +859,11 @@ function PlanDocumentManagement() {
                       </tr>
                     );
                   })}
-                  {/* 100岁增长倍数 */}
-                  <tr className="bg-gradient-to-r from-green-50 to-emerald-50 border-t-2 border-green-200">
-                    <td className="px-2 md:px-4 py-3 md:py-4 text-xs md:text-sm font-bold text-green-800 whitespace-nowrap sticky left-0 bg-gradient-to-r from-green-50 to-emerald-50 z-10 border-r-2 border-gray-300">
-                      增长倍数
-                    </td>
-                    {comparisonData.products.map((product, pIndex) => {
-                      const doc = documents.find(d => d.id === product.id);
-                      const annualPremium = doc?.annual_premium ? parseInt(doc.annual_premium) : 0;
-                      const paymentYears = doc?.payment_years ? parseInt(doc.payment_years) : 0;
-                      const valueAt100 = product.ageData[100]?.total || 0;
-                      const holdingYearsAt100 = 100 - product.currentAge;
-
-                      // 计算实际投入（100岁时）
-                      const actualInvestment = annualPremium * Math.min(holdingYearsAt100, paymentYears);
-                      const growthRate = actualInvestment > 0 ? (valueAt100 / actualInvestment).toFixed(2) : '-';
-
-                      return (
-                        <React.Fragment key={`${product.id}-growth`}>
-                          {visibleColumns.premiumsPaid && (
-                            <td className="px-2 md:px-4 py-3 md:py-4 text-xs md:text-sm text-orange-700 font-semibold text-center whitespace-nowrap">
-                              {actualInvestment > 0 ? actualInvestment.toLocaleString('zh-CN') : '-'}
-                            </td>
-                          )}
-                          {visibleColumns.guaranteed && (
-                            <td className="px-2 md:px-4 py-3 md:py-4 text-xs md:text-sm text-gray-500 text-center whitespace-nowrap">
-                              -
-                            </td>
-                          )}
-                          {visibleColumns.total && (
-                            <td className="px-2 md:px-4 py-3 md:py-4 text-xs md:text-sm font-bold text-green-700 text-center whitespace-nowrap">
-                              {growthRate !== '-' ? `${growthRate}x` : '-'}
-                            </td>
-                          )}
-                          {visibleColumns.simpleReturn && (
-                            <td className="px-2 md:px-4 py-3 md:py-4 text-xs md:text-sm text-gray-500 text-center whitespace-nowrap">
-                              -
-                            </td>
-                          )}
-                          {visibleColumns.irr && (
-                            <td className={`px-2 md:px-4 py-3 md:py-4 text-xs md:text-sm text-gray-500 text-center whitespace-nowrap ${pIndex < comparisonData.products.length - 1 ? 'border-r-2 border-indigo-200' : ''}`}>
-                              -
-                            </td>
-                          )}
-                        </React.Fragment>
-                      );
-                    })}
-                  </tr>
                 </tbody>
               </table>
             </div>
           </div>
 
-          {/* 列选择器模态框 */}
-          {showColumnSelector && (
-            <div className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-[9999] p-4">
-              <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden">
-                {/* 标题栏 */}
-                <div className="bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 px-4 py-3 flex items-center justify-between">
-                  <div className="w-8"></div>
-                  <h3 className="text-lg font-bold text-white text-center flex-1">自定义显示项</h3>
-                  <button
-                    onClick={() => setShowColumnSelector(false)}
-                    className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-white/20 transition-all"
-                    aria-label="关闭"
-                  >
-                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* 操作按钮栏 */}
-                <div className="px-4 py-2 bg-gray-50 flex items-center justify-between gap-2 border-b border-gray-200">
-                  <button
-                    onClick={handleSelectAllColumns}
-                    className="px-3 py-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 transition-all text-xs font-semibold"
-                  >
-                    全选
-                  </button>
-                  <div className="text-xs text-gray-600">
-                    已选择 <span className="font-bold text-indigo-600">{getVisibleColumnCount()}</span> / 5 项
-                  </div>
-                </div>
-
-                {/* 列选项 */}
-                <div className="p-3 space-y-2">
-                  <label className="flex items-center gap-3 p-2.5 bg-orange-50 rounded-lg hover:bg-orange-100 transition-all cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={visibleColumns.premiumsPaid}
-                      onChange={() => handleToggleColumn('premiumsPaid')}
-                      className="w-4 h-4 rounded text-orange-500"
-                    />
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-gray-900">已缴保费</div>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={visibleColumns.guaranteed}
-                      onChange={() => handleToggleColumn('guaranteed')}
-                      className="w-4 h-4 rounded text-gray-500"
-                    />
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-gray-900">保证价值</div>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-3 p-2.5 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={visibleColumns.total}
-                      onChange={() => handleToggleColumn('total')}
-                      className="w-4 h-4 rounded text-indigo-500"
-                    />
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-gray-900">预期价值</div>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-3 p-2.5 bg-purple-50 rounded-lg hover:bg-purple-100 transition-all cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={visibleColumns.simpleReturn}
-                      onChange={() => handleToggleColumn('simpleReturn')}
-                      className="w-4 h-4 rounded text-purple-500"
-                    />
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-gray-900">年化单利</div>
-                    </div>
-                  </label>
-
-                  <label className="flex items-center gap-3 p-2.5 bg-green-50 rounded-lg hover:bg-green-100 transition-all cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={visibleColumns.irr}
-                      onChange={() => handleToggleColumn('irr')}
-                      className="w-4 h-4 rounded text-green-500"
-                    />
-                    <div className="flex-1">
-                      <div className="text-sm font-semibold text-gray-900">IRR(年化复利)</div>
-                    </div>
-                  </label>
-                </div>
-
-                {/* 底部按钮 */}
-                <div className="px-4 py-2.5 bg-gray-50 border-t border-gray-200 flex items-center justify-end gap-2">
-                  <button
-                    onClick={() => setShowColumnSelector(false)}
-                    className="px-5 py-2 bg-gradient-to-r from-indigo-600 to-purple-600 text-white rounded-lg hover:from-indigo-700 hover:to-purple-700 transition-all shadow-md hover:shadow-lg text-sm font-semibold"
-                  >
-                    确认
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
       </div>
     );
@@ -994,13 +895,22 @@ function PlanDocumentManagement() {
               <div className="text-3xl font-bold text-indigo-600">{filteredDocuments.length}</div>
               <div className="text-sm text-gray-600">份计划书</div>
             </div>
-            <button
-              onClick={() => onNavigate && onNavigate('plan-analyzer')}
-              className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all shadow-md hover:shadow-lg"
-            >
-              <FileText className="w-4 h-4" />
-              <span className="font-medium text-sm">添加计划书</span>
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => onNavigate && onNavigate('plan-analyzer')}
+                className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-green-600 to-emerald-600 text-white rounded-lg hover:from-green-700 hover:to-emerald-700 transition-all shadow-md hover:shadow-lg"
+              >
+                <FileText className="w-4 h-4" />
+                <span className="font-medium text-sm">添加计划书</span>
+              </button>
+              <button
+                onClick={() => onNavigate && onNavigate('plan-comparison')}
+                className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-700 hover:to-indigo-700 transition-all shadow-md hover:shadow-lg"
+              >
+                <GitCompare className="w-4 h-4" />
+                <span className="font-medium text-sm">计划书AI对比</span>
+              </button>
+            </div>
           </div>
         </div>
 
@@ -1112,6 +1022,9 @@ function PlanDocumentManagement() {
                     <th className="px-2 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       文件名
                     </th>
+                    <th className="px-2 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider min-w-[300px]">
+                      投保人信息
+                    </th>
                     <th className="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                       分析状态
                     </th>
@@ -1119,42 +1032,12 @@ function PlanDocumentManagement() {
                       操作
                     </th>
                     <th className="px-2 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      受保人
-                    </th>
-                    <th className="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      年龄
-                    </th>
-                    <th className="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      性别
-                    </th>
-                    <th className="px-2 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      保险公司
-                    </th>
-                    <th className="px-2 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      产品
-                    </th>
-                    <th className="px-2 md:px-4 py-2 md:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      保额
-                    </th>
-                    <th className="px-2 md:px-4 py-2 md:py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      年缴保费
-                    </th>
-                    <th className="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      缴费期
-                    </th>
-                    <th className="px-2 md:px-4 py-2 md:py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      年度表
-                    </th>
-                    <th className="px-2 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      计划书概要
-                    </th>
-                    <th className="px-2 md:px-4 py-2 md:py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       创建时间
                     </th>
                   </tr>
                 </thead>
                 <tbody className="bg-white divide-y divide-gray-200">
-                  {filteredDocuments.map((doc) => (
+                  {paginatedDocuments.map((doc) => (
                     <React.Fragment key={doc.id}>
                       <tr className="hover:bg-gray-50 transition-colors">
                       <td className="px-2 md:px-4 py-2 md:py-3 text-center" onClick={(e) => e.stopPropagation()}>
@@ -1171,6 +1054,85 @@ function PlanDocumentManagement() {
                           <span className="text-sm font-medium text-gray-900 truncate" title={doc.file_name}>
                             {doc.file_name}
                           </span>
+                        </div>
+                      </td>
+                      <td className="px-2 md:px-4 py-2 md:py-3 text-sm text-gray-700 cursor-pointer" onClick={() => handleViewDocument(doc)}>
+                        <div className="space-y-0.5 text-left">
+                          {/* 第1行：姓名 + 年龄/性别 */}
+                          <div className="flex flex-wrap gap-x-3">
+                            {doc.insured_name && (
+                              <div className="whitespace-nowrap">
+                                <span className="text-gray-500">姓名:</span>
+                                <span className="font-medium ml-1">{doc.insured_name}</span>
+                              </div>
+                            )}
+                            {(doc.insured_age || doc.insured_gender) && (
+                              <div className="whitespace-nowrap">
+                                <span className="text-gray-500">年龄/性别:</span>
+                                <span className="ml-1">{doc.insured_age || '-'} / {doc.insured_gender || '-'}</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 第2行：公司 */}
+                          {doc.insurance_company && (
+                            <div>
+                              <span className="text-gray-500">公司:</span>
+                              <span className="ml-1">{doc.insurance_company}</span>
+                            </div>
+                          )}
+
+                          {/* 第3行：产品 */}
+                          {doc.insurance_product && (
+                            <div>
+                              <span className="text-gray-500">产品:</span>
+                              <span className="ml-1">{doc.insurance_product}</span>
+                            </div>
+                          )}
+
+                          {/* 第4行：保额 + 年缴 + 缴费期 */}
+                          <div className="flex flex-wrap gap-x-3">
+                            {doc.sum_assured && (
+                              <div className="whitespace-nowrap">
+                                <span className="text-gray-500">保额:</span>
+                                <span className="font-medium text-blue-600 ml-1">
+                                  {parseInt(doc.sum_assured.toString().replace(/,/g, '')).toLocaleString('zh-CN')}
+                                </span>
+                              </div>
+                            )}
+                            {doc.annual_premium && (
+                              <div className="whitespace-nowrap">
+                                <span className="text-gray-500">年缴:</span>
+                                <span className="font-medium text-green-600 ml-1">
+                                  {parseInt(doc.annual_premium.toString().replace(/,/g, '')).toLocaleString('zh-CN')}
+                                </span>
+                              </div>
+                            )}
+                            {doc.payment_years && (
+                              <div className="whitespace-nowrap">
+                                <span className="text-gray-500">缴费期:</span>
+                                <span className="ml-1">{doc.payment_years}年</span>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 第5行：总保费 + 期限 */}
+                          <div className="flex flex-wrap gap-x-3">
+                            {doc.total_premium && (
+                              <div className="whitespace-nowrap">
+                                <span className="text-gray-500">总保费:</span>
+                                <span className="font-medium text-purple-600 ml-1">
+                                  {parseInt(doc.total_premium.toString().replace(/,/g, '')).toLocaleString('zh-CN')}
+                                </span>
+                              </div>
+                            )}
+                            {doc.insurance_period && (
+                              <div className="whitespace-nowrap">
+                                <span className="text-gray-500">期限:</span>
+                                <span className="ml-1">{doc.insurance_period}</span>
+                              </div>
+                            )}
+                          </div>
                         </div>
                       </td>
                       <td className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap text-center cursor-pointer" onClick={() => handleViewDocument(doc)}>
@@ -1196,9 +1158,9 @@ function PlanDocumentManagement() {
                               e.stopPropagation();
                               handleDownloadPDF(doc);
                             }}
-                            disabled={!doc.file_path}
-                            className="inline-flex items-center justify-center gap-0.5 w-7 h-7 md:w-auto md:h-auto md:px-2 md:py-1.5 bg-green-600 text-white text-xs rounded hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                            title={doc.file_path ? "下载PDF" : "PDF文件不存在"}
+                            disabled
+                            className="inline-flex items-center justify-center gap-0.5 w-7 h-7 md:w-auto md:h-auto md:px-2 md:py-1.5 bg-gray-400 text-white text-xs rounded cursor-not-allowed opacity-50 whitespace-nowrap"
+                            title="下载功能暂时禁用"
                           >
                             <Download className="w-3.5 h-3.5 flex-shrink-0" />
                             <span className="hidden lg:inline">下载</span>
@@ -1227,92 +1189,6 @@ function PlanDocumentManagement() {
                           </button>
                         </div>
                       </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap text-sm text-gray-700 cursor-pointer" onClick={() => handleViewDocument(doc)}>
-                        {doc.insured_name || '-'}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap text-sm text-gray-700 text-center cursor-pointer" onClick={() => handleViewDocument(doc)}>
-                        {doc.insured_age || '-'}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap text-sm text-gray-700 text-center cursor-pointer" onClick={() => handleViewDocument(doc)}>
-                        {doc.insured_gender || '-'}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap text-sm text-gray-700 cursor-pointer" onClick={() => handleViewDocument(doc)}>
-                        {doc.insurance_company || '-'}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 max-w-xs text-sm text-gray-700 cursor-pointer" onClick={() => handleViewDocument(doc)}>
-                        <div className="truncate" title={doc.insurance_product}>
-                          {doc.insurance_product || '-'}
-                        </div>
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap text-sm text-gray-900 text-right font-medium cursor-pointer" onClick={() => handleViewDocument(doc)}>
-                        {doc.sum_assured ? parseInt(doc.sum_assured).toLocaleString('zh-CN') : '-'}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap text-sm text-gray-900 text-right font-medium cursor-pointer" onClick={() => handleViewDocument(doc)}>
-                        {doc.annual_premium ? parseInt(doc.annual_premium).toLocaleString('zh-CN') : '-'}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap text-sm text-gray-700 text-center cursor-pointer" onClick={() => handleViewDocument(doc)}>
-                        {doc.payment_years ? `${doc.payment_years}年` : '-'}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap text-center cursor-pointer" onClick={() => handleViewDocument(doc)}>
-                        {(() => {
-                          // 检查table1是否有数据
-                          let hasTable1 = false;
-                          let recordCount = 0;
-
-                          if (doc.table1) {
-                            if (typeof doc.table1 === 'object' && doc.table1.years && Array.isArray(doc.table1.years)) {
-                              hasTable1 = doc.table1.years.length > 0;
-                              recordCount = doc.table1.years.length;
-                            } else if (typeof doc.table1 === 'string' && doc.table1.trim().length > 0) {
-                              hasTable1 = true;
-                              recordCount = 0; // 字符串格式无法获取条数
-                            }
-                          }
-
-                          if (hasTable1) {
-                            return (
-                              <span className="px-1.5 md:px-2 py-0.5 md:py-1 text-sm font-semibold bg-green-100 text-green-800 rounded-full">
-                                {recordCount > 0 ? `${recordCount}条` : '已分析'}
-                              </span>
-                            );
-                          } else {
-                            return <span className="text-gray-400 text-sm">未分析</span>;
-                          }
-                        })()}
-                      </td>
-                      <td className="px-2 md:px-4 py-2 md:py-3 max-w-md cursor-pointer" onClick={() => handleViewDocument(doc)}>
-                        {(() => {
-                          let summaryText = '';
-                          if (doc.summary) {
-                            try {
-                              // 尝试解析JSON字符串
-                              if (typeof doc.summary === 'string') {
-                                const parsed = JSON.parse(doc.summary);
-                                summaryText = parsed.summary || doc.summary;
-                              } else if (typeof doc.summary === 'object') {
-                                // 如果是对象，提取summary字段
-                                summaryText = doc.summary.summary || '';
-                              }
-                            } catch (e) {
-                              // JSON解析失败，如果是字符串则直接使用
-                              if (typeof doc.summary === 'string') {
-                                summaryText = doc.summary;
-                              }
-                            }
-                          }
-
-                          // 确保summaryText是字符串且非空
-                          if (summaryText && typeof summaryText === 'string' && summaryText.trim()) {
-                            return (
-                              <div className="text-sm text-gray-700 line-clamp-2" title={summaryText}>
-                                {summaryText}
-                              </div>
-                            );
-                          } else {
-                            return <span className="text-gray-400 text-sm">未提取</span>;
-                          }
-                        })()}
-                      </td>
                       <td className="px-2 md:px-4 py-2 md:py-3 whitespace-nowrap text-sm text-gray-500 cursor-pointer" onClick={() => handleViewDocument(doc)}>
                         {new Date(doc.created_at).toLocaleString('zh-CN', {
                           month: '2-digit',
@@ -1326,11 +1202,52 @@ function PlanDocumentManagement() {
                   ))}
                 </tbody>
               </table>
+
+              {/* 分页组件 */}
+              {totalPages > 1 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t border-gray-200 bg-white">
+                  <div className="flex items-center gap-2 text-sm text-gray-700">
+                    <span>共 {filteredDocuments.length} 条记录</span>
+                    <span>|</span>
+                    <span>第 {currentPage} / {totalPages} 页</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage(1)}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      首页
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                      disabled={currentPage === 1}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      上一页
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      下一页
+                    </button>
+                    <button
+                      onClick={() => setCurrentPage(totalPages)}
+                      disabled={currentPage === totalPages}
+                      className="px-3 py-1 text-sm border border-gray-300 rounded hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      末页
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* 手机端卡片视图 */}
             <div className="md:hidden space-y-4">
-              {filteredDocuments.map((doc) => (
+              {paginatedDocuments.map((doc) => (
                 <div
                   key={doc.id}
                   className="bg-white rounded-xl shadow-lg p-4 cursor-pointer hover:shadow-xl transition-shadow"
@@ -1429,12 +1346,30 @@ function PlanDocumentManagement() {
 
                       // 确保summaryText是字符串且非空
                       if (summaryText && typeof summaryText === 'string' && summaryText.trim()) {
-                        return (
-                          <div className="text-xs text-gray-600">
-                            <span className="text-gray-500">概要：</span>
-                            <span className="line-clamp-2">{summaryText}</span>
-                          </div>
-                        );
+                        // 检查是否为HTML内容（包含HTML标签）
+                        const isHTML = /<[^>]+>/.test(summaryText);
+
+                        if (isHTML) {
+                          // 如果是HTML，提取纯文本内容用于预览
+                          const tempDiv = document.createElement('div');
+                          tempDiv.innerHTML = summaryText;
+                          const plainText = tempDiv.textContent || tempDiv.innerText || '';
+
+                          return (
+                            <div className="text-xs text-gray-600">
+                              <span className="text-gray-500">概要：</span>
+                              <span className="line-clamp-2">{plainText.trim()}</span>
+                            </div>
+                          );
+                        } else {
+                          // 纯文本直接显示
+                          return (
+                            <div className="text-xs text-gray-600">
+                              <span className="text-gray-500">概要：</span>
+                              <span className="line-clamp-2">{summaryText}</span>
+                            </div>
+                          );
+                        }
                       } else {
                         return (
                           <div className="text-xs text-gray-400">
@@ -1482,9 +1417,9 @@ function PlanDocumentManagement() {
                         e.stopPropagation();
                         handleDownloadPDF(doc);
                       }}
-                      disabled={!doc.file_path}
-                      className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-2 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-                      title={doc.file_path ? "下载PDF" : "PDF文件不存在"}
+                      disabled
+                      className="flex-1 inline-flex items-center justify-center gap-1 px-2 py-2 bg-gray-400 text-white text-xs rounded-lg cursor-not-allowed opacity-50 whitespace-nowrap"
+                      title="下载功能暂时禁用"
                     >
                       <Download className="w-3.5 h-3.5 flex-shrink-0" />
                       <span>下载</span>
@@ -1492,6 +1427,49 @@ function PlanDocumentManagement() {
                   </div>
                 </div>
               ))}
+
+              {/* 手机端分页组件 */}
+              {totalPages > 1 && (
+                <div className="mt-4 bg-white rounded-xl shadow-lg p-4">
+                  <div className="flex flex-col gap-3">
+                    <div className="text-center text-sm text-gray-700">
+                      <span>共 {filteredDocuments.length} 条记录</span>
+                      <span className="mx-2">|</span>
+                      <span>第 {currentPage} / {totalPages} 页</span>
+                    </div>
+                    <div className="flex items-center justify-center gap-2">
+                      <button
+                        onClick={() => setCurrentPage(1)}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        首页
+                      </button>
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                        disabled={currentPage === 1}
+                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        上一页
+                      </button>
+                      <button
+                        onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        下一页
+                      </button>
+                      <button
+                        onClick={() => setCurrentPage(totalPages)}
+                        disabled={currentPage === totalPages}
+                        className="px-3 py-1.5 text-sm border border-gray-300 rounded-lg hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+                      >
+                        末页
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           </>
         )}

@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Clawdbot 智能助理服务</title>
+    <style>
+        :root {
+            --primary-color: #2563eb;
+            --secondary-color: #1e40af;
+            --accent-color: #10b981;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-secondary: #4b5563;
+            --danger: #ef4444;
+        }
+
+        body {
+            font-family: 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', Roboto, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            text-align: center;
+            padding: 80px 20px;
+            clip-path: polygon(0 0, 100% 0, 100% 90%, 0 100%);
+        }
+
+        .header h1 {
+            margin: 0;
+            font-size: 2.5rem;
+            font-weight: 800;
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .header p {
+            font-size: 1.2rem;
+            margin-top: 15px;
+            opacity: 0.9;
+        }
+
+        .container {
+            max-width: 800px;
+            margin: -60px auto 40px;
+            padding: 0 20px;
+            position: relative;
+            z-index: 10;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border-radius: 16px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.08);
+            padding: 40px;
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+
+        .image-banner {
+            width: 100%;
+            height: 200px;
+            background-image: url('https://images.unsplash.com/photo-1485827404703-89b55fcc595e?ixlib=rb-4.0.3&auto=format&fit=crop&w=1200&q=80');
+            background-size: cover;
+            background-position: center;
+            border-radius: 12px;
+            margin-bottom: 30px;
+        }
+
+        h2 {
+            color: var(--secondary-color);
+            font-size: 1.8rem;
+            margin-bottom: 25px;
+            border-bottom: 3px solid var(--bg-color);
+            padding-bottom: 10px;
+            display: inline-block;
+        }
+
+        .pain-points {
+            background-color: #fef2f2;
+            border-left: 5px solid var(--danger);
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 30px;
+        }
+
+        .pain-points h3 {
+            color: #991b1b;
+            margin-top: 0;
+        }
+
+        .pain-list li {
+            position: relative;
+            padding-left: 25px;
+            margin-bottom: 10px;
+            list-style: none;
+        }
+
+        .pain-list li::before {
+            content: "✕";
+            position: absolute;
+            left: 0;
+            color: var(--danger);
+            font-weight: bold;
+        }
+
+        .solution-list {
+            padding: 0;
+            margin: 0;
+        }
+
+        .solution-list li {
+            list-style: none;
+            margin-bottom: 20px;
+            padding: 20px;
+            background-color: #eff6ff;
+            border-radius: 10px;
+            border-left: 5px solid var(--primary-color);
+            transition: transform 0.2s;
+        }
+
+        .solution-list li:hover {
+            transform: translateX(5px);
+        }
+
+        .solution-list strong {
+            display: block;
+            font-size: 1.1rem;
+            color: var(--primary-color);
+            margin-bottom: 5px;
+        }
+
+        .vip-service {
+            background: linear-gradient(to right, #ecfdf5, #d1fae5);
+            padding: 25px;
+            border-radius: 12px;
+            border: 1px solid #a7f3d0;
+            text-align: center;
+            margin-top: 30px;
+        }
+
+        .cta-section {
+            text-align: center;
+            padding: 40px 20px;
+        }
+
+        .cta-text {
+            font-size: 1.2rem;
+            color: var(--text-secondary);
+            margin-bottom: 30px;
+        }
+
+        .btn-pulse {
+            background: linear-gradient(45deg, #f59e0b, #d97706);
+            color: white;
+            text-decoration: none;
+            padding: 20px 50px;
+            border-radius: 50px;
+            font-size: 1.5rem;
+            font-weight: bold;
+            display: inline-block;
+            box-shadow: 0 4px 15px rgba(245, 158, 11, 0.4);
+            transition: all 0.3s;
+            animation: pulse 2s infinite;
+        }
+
+        .btn-pulse:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(245, 158, 11, 0.6);
+        }
+
+        @keyframes pulse {
+            0% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(245, 158, 11, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(245, 158, 11, 0); }
+        }
+
+        .footer {
+            text-align: center;
+            padding: 40px;
+            color: var(--text-secondary);
+            font-size: 0.9rem;
+        }
+
+        @media (max-width: 600px) {
+            .header h1 { font-size: 1.8rem; }
+            .card { padding: 25px; }
+            .btn-pulse { padding: 15px 30px; font-size: 1.2rem; }
+        }
+    </style>
+</head>
+<body>
+
+    <header class="header">
+        <h1>我们向"人工智能写作"会员<br>提供开箱即用的 Clawdbot 智能机器人服务</h1>
+    </header>
+
+    <div class="container">
+        <div class="card">
+            <div class="image-banner"></div>
+            
+            <div class="pain-points">
+                <h3>🚫 目前的困扰</h3>
+                <p>目前自己安装 <strong>ClawdBot 个人助理</strong> 非常麻烦：</p>
+                <ul class="pain-list">
+                    <li>一个方法是自己买 Mac mini，成本高，闲置浪费。</li>
+                    <li>另外就是自己租用云服务器，还要去很麻烦的去安装、配置环境。</li>
+                </ul>
+            </div>
+
+            <h2>💡 我们推出个人智能助理开箱即用服务</h2>
+            <ul class="solution-list">
+                <li>
+                    <strong>1、帮你安装好 Clawdbot</strong>
+                    我们使用腾讯云轻量服务器，一人一台完全隔离，保障数据私密与安全。
+                </li>
+                <li>
+                    <strong>2、绑定你的微信号</strong>
+                    支持公众号、企业微信，无缝对接你现有的沟通习惯。
+                </li>
+                <li>
+                    <strong>3、你打开微信直接使用</strong>
+                    无需任何技术背景，像聊天一样简单。
+                </li>
+            </ul>
+
+            <div class="vip-service">
+                <h3 style="margin:0 0 10px 0; color: #059669;">✨ 增值服务</h3>
+                <p style="margin:0;">可以帮你定制你需要的工作流程，如有需求可以联系我们的客服。</p>
+            </div>
+        </div>
+
+        <div class="card cta-section">
+            <h2>立即拥有</h2>
+            <div class="cta-text">
+                <p>你立即拥有一台属于你的 Clawdbot</p>
+                <p style="font-size: 0.9em; opacity: 0.8;">不需要购买 Mac mini · 不需要自己购买云服务器 · 马上开始使用</p>
+            </div>
+            <a href="#" class="btn-pulse">点击下单</a>
+        </div>
+    </div>
+
+    <div class="footer">
+        &copy; 2026 人工智能写作会员服务
+    </div>
+
+</body>
+</html>

@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>客户案例显示测试</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-gray-900">客户案例标签显示测试</h1>
+
+        <div class="space-y-4">
+            <!-- 测试案例1：标准人生阶段标签 -->
+            <div class="bg-white rounded-lg shadow p-4 border border-gray-200">
+                <h3 class="text-base font-bold text-gray-900 mb-2">测试1: 标准人生阶段标签 (扶幼保障期)</h3>
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-pink-100 text-pink-700 border-pink-300">
+                        <span class="mr-1">👶</span>
+                        扶幼保障期
+                    </span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                        <svg class="h-3 w-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
+                        </svg>
+                        30岁
+                    </span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                        <svg class="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        年缴 HK$78,000
+                    </span>
+                </div>
+                <p class="text-sm text-gray-600 mt-2">✅ 这是正确的显示效果</p>
+            </div>
+
+            <!-- 测试案例2：非标准标签 (无emoji) -->
+            <div class="bg-white rounded-lg shadow p-4 border border-gray-200">
+                <h3 class="text-base font-bold text-gray-900 mb-2">测试2: 非标准标签 (教育金)</h3>
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-gray-100 text-gray-700 border-gray-300">
+                        教育金
+                    </span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-700">
+                        <svg class="h-3 w-3 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                            <path fill-rule="evenodd" d="M10 9a3 3 0 100-6 3 3 0 000 6zm-7 9a7 7 0 1114 0H3z" clip-rule="evenodd" />
+                        </svg>
+                        30岁
+                    </span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-50 text-green-700 border border-green-200">
+                        <svg class="h-3 w-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                        </svg>
+                        年缴 HK$78,000
+                    </span>
+                </div>
+                <p class="text-sm text-gray-600 mt-2">✅ 非标准标签不显示emoji，这是修复后的效果</p>
+            </div>
+
+            <!-- 测试案例3：所有人生阶段标签 -->
+            <div class="bg-white rounded-lg shadow p-4 border border-gray-200">
+                <h3 class="text-base font-bold text-gray-900 mb-2">测试3: 所有标准人生阶段标签</h3>
+                <div class="flex flex-wrap items-center gap-1.5">
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-pink-100 text-pink-700 border-pink-300">
+                        <span class="mr-1">👶</span>
+                        扶幼保障期
+                    </span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-blue-100 text-blue-700 border-blue-300">
+                        <span class="mr-1">📈</span>
+                        收入成长期
+                    </span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-purple-100 text-purple-700 border-purple-300">
+                        <span class="mr-1">💼</span>
+                        责任高峰期
+                    </span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-orange-100 text-orange-700 border-orange-300">
+                        <span class="mr-1">🏡</span>
+                        责任递减期
+                    </span>
+                    <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium border bg-green-100 text-green-700 border-green-300">
+                        <span class="mr-1">🏖️</span>
+                        退休期
+                    </span>
+                </div>
+                <p class="text-sm text-gray-600 mt-2">✅ 这5个标准标签都应该显示emoji</p>
+            </div>
+
+            <!-- 说明 -->
+            <div class="bg-blue-50 border-l-4 border-blue-500 p-4 rounded">
+                <h4 class="text-sm font-bold text-blue-900 mb-2">📋 修复说明</h4>
+                <ul class="text-sm text-blue-800 space-y-1">
+                    <li>✅ 标准人生阶段标签（扶幼保障期、收入成长期等）显示emoji</li>
+                    <li>✅ 非标准标签（教育金、高端医疗等）不显示emoji，用灰色徽章</li>
+                    <li>✅ 年缴保费现在使用绿色背景高亮显示</li>
+                    <li>✅ 当数据为空时，年缴保费标签会被隐藏</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

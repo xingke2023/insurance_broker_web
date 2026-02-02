@@ -97,7 +97,7 @@ class PlanDocument(models.Model):
     # 无忧选退保价值表（longtext格式）
     table2 = models.TextField(verbose_name='无忧选退保价值表', blank=True, default='')
 
-    # 计划书概要（AI提取，纯文本格式）
+    # 计划书概要（AI提取，HTML格式）
     summary = models.TextField(verbose_name='计划书概要', blank=True, default='')
 
     # 计划书Table源代码内容（提取所有<table>标签）
@@ -125,6 +125,8 @@ class PlanDocument(models.Model):
         max_length=50,
         choices=[
             ('pending', '待处理'),
+            ('ocr_processing', 'OCR识别中'),
+            ('ocr_completed', 'OCR识别完成'),
             ('extracting_tablecontent', '提取表格源代码中'),
             ('tablecontent_completed', '表格源代码完成'),
             ('extracting_tablesummary', '分析表格结构中'),
@@ -779,6 +781,12 @@ class InsuranceCompany(models.Model):
         default='',
         help_text='该保险公司的主打寿险产品名称'
     )
+    website_url = models.URLField(
+        verbose_name='公司官网',
+        blank=True,
+        max_length=500,
+        help_text='保险公司的官方网站链接地址'
+    )
     is_active = models.BooleanField(
         default=True,
         verbose_name='是否启用'
@@ -807,7 +815,7 @@ class InsuranceCompany(models.Model):
 
 
 class InsuranceProduct(models.Model):
-    """保险公司产品模型"""
+    """保险公司产品模型（主表 - 存储产品基本信息）"""
     company = models.ForeignKey(
         InsuranceCompany,
         on_delete=models.CASCADE,
@@ -818,28 +826,35 @@ class InsuranceProduct(models.Model):
         max_length=200,
         verbose_name='产品名称'
     )
+
+    # 以下字段保留用于向后兼容，新数据建议使用 ProductPlan 关联表
     payment_period = models.IntegerField(
-        verbose_name='缴费年期',
-        help_text='缴费年数，例如：5年、10年'
+        verbose_name='缴费年期（已废弃）',
+        null=True,
+        blank=True,
+        help_text='⚠️ 已废弃：请使用 ProductPlan 关联表管理不同缴费年期'
     )
     annual_premium = models.DecimalField(
         max_digits=15,
         decimal_places=2,
-        verbose_name='年缴金额',
-        help_text='年缴保费金额'
+        verbose_name='年缴金额（已废弃）',
+        null=True,
+        blank=True,
+        help_text='⚠️ 已废弃：请使用 ProductPlan 关联表管理不同年缴金额'
     )
     surrender_value_table = models.TextField(
-        verbose_name='退保发还金额表',
+        verbose_name='退保发还金额表（已废弃）',
         blank=True,
         default='',
-        help_text='JSON格式存储各年度退保价值，例如：[{"year": 1, "guaranteed": 0, "non_guaranteed": 0, "total": 0}, ...]'
+        help_text='⚠️ 已废弃：请使用 ProductPlan 关联表管理退保价值表'
     )
     death_benefit_table = models.TextField(
-        verbose_name='身故保险赔偿表',
+        verbose_name='身故保险赔偿表（已废弃）',
         blank=True,
         default='',
-        help_text='JSON格式存储各年度身故赔偿金额，例如：[{"year": 1, "benefit": 100000}, ...]'
+        help_text='⚠️ 已废弃：请使用 ProductPlan 关联表管理身故赔偿表'
     )
+
     is_withdrawal = models.BooleanField(
         default=False,
         verbose_name='是否提取',
@@ -848,6 +863,23 @@ class InsuranceProduct(models.Model):
     description = models.TextField(
         verbose_name='产品描述',
         blank=True
+    )
+
+    # 产品分类
+    product_category = models.CharField(
+        max_length=50,
+        verbose_name='产品分类',
+        blank=True,
+        help_text='产品类型分类，例如：重疾险、理财、储蓄、医疗险等'
+    )
+
+    # 支持的缴费年期
+    supported_payment_periods = models.CharField(
+        max_length=200,
+        verbose_name='支持的缴费年期',
+        blank=True,
+        default='',
+        help_text='产品支持的缴费年期选项，多个用逗号分隔，例如：1年,2年,5年,趸缴'
     )
 
     # AI推荐相关字段
@@ -881,7 +913,7 @@ class InsuranceProduct(models.Model):
         verbose_name='最低年收入要求',
         null=True,
         blank=True,
-        help_text='建议的最低年收入（台币），例如：500000'
+        help_text='建议的最低年收入（港币），例如：500000'
     )
     features = models.JSONField(
         verbose_name='产品特点列表',
@@ -893,6 +925,44 @@ class InsuranceProduct(models.Model):
         verbose_name='AI推荐提示词',
         blank=True,
         help_text='AI推荐产品时使用的描述，帮助AI更好地理解产品特性'
+    )
+
+    # 计划书产品概要
+    plan_summary = models.TextField(
+        verbose_name='计划书产品概要',
+        blank=True,
+        help_text='产品在计划书中的概要描述，用于快速了解产品核心信息'
+    )
+
+    # 计划书详情
+    plan_details = models.TextField(
+        verbose_name='计划书详情',
+        blank=True,
+        help_text='产品计划书的完整详细信息，包括条款、保障范围、理赔流程等详细内容'
+    )
+
+    # 计划书PDF Base64编码
+    plan_pdf_base64 = models.TextField(
+        verbose_name='计划书PDF Base64编码',
+        blank=True,
+        default='',
+        help_text='存储计划书PDF文件的Base64编码，用于前端下载或预览'
+    )
+
+    # 产品研究报告
+    product_research_report = models.TextField(
+        verbose_name='产品研究报告',
+        blank=True,
+        default='',
+        help_text='产品的深度研究报告，包括市场分析、竞品对比、投资策略等专业内容'
+    )
+
+    # 官方产品链接
+    url = models.URLField(
+        verbose_name='官方产品链接',
+        blank=True,
+        max_length=500,
+        help_text='产品的官方网站链接地址'
     )
 
     is_active = models.BooleanField(
@@ -923,6 +993,136 @@ class InsuranceProduct(models.Model):
 
     def __str__(self):
         return f"{self.company.name} - {self.product_name}"
+
+
+class ProductPlan(models.Model):
+    """
+    产品缴费方案模型
+    同一款产品可以有多个不同的缴费年期方案
+    每个方案包含独立的年缴金额、退保价值表和身故赔偿表
+    """
+    product = models.ForeignKey(
+        InsuranceProduct,
+        on_delete=models.CASCADE,
+        related_name='plans',
+        verbose_name='所属产品'
+    )
+    plan_name = models.CharField(
+        max_length=100,
+        verbose_name='方案名称',
+        blank=True,
+        help_text='例如：5年缴费方案、10年缴费方案'
+    )
+    payment_period = models.IntegerField(
+        verbose_name='缴费年期',
+        help_text='缴费年数，例如：5、10、15、20'
+    )
+    annual_premium = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        verbose_name='年缴金额',
+        help_text='年缴保费金额（港币）'
+    )
+
+    # 退保价值表
+    surrender_value_table = models.TextField(
+        verbose_name='退保发还金额表',
+        blank=True,
+        default='',
+        help_text='JSON格式：[{"year": 1, "guaranteed": 0, "non_guaranteed": 0, "total": 0, "premiums_paid": 10000}, ...]'
+    )
+
+    # 身故赔偿表
+    death_benefit_table = models.TextField(
+        verbose_name='身故保险赔偿表',
+        blank=True,
+        default='',
+        help_text='JSON格式：[{"year": 1, "benefit": 100000}, {"year": 2, "benefit": 150000}, ...]'
+    )
+
+    # IRR内部回报率（可选）
+    irr_rate = models.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        verbose_name='内部回报率（IRR）',
+        null=True,
+        blank=True,
+        help_text='年化内部回报率（百分比），例如：5.5 表示5.5%'
+    )
+
+    # 总保费
+    total_premium = models.DecimalField(
+        max_digits=15,
+        decimal_places=2,
+        verbose_name='总保费',
+        null=True,
+        blank=True,
+        help_text='年缴金额 × 缴费年期'
+    )
+
+    # 方案说明
+    plan_description = models.TextField(
+        verbose_name='方案说明',
+        blank=True,
+        default='',
+        help_text='该缴费方案的详细说明和特点'
+    )
+
+    # 是否推荐方案
+    is_recommended = models.BooleanField(
+        default=False,
+        verbose_name='是否推荐方案',
+        help_text='标记为推荐方案会在前端优先显示'
+    )
+
+    # 排序
+    sort_order = models.IntegerField(
+        default=0,
+        verbose_name='排序',
+        help_text='数字越小越靠前'
+    )
+
+    # 是否启用
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='是否启用'
+    )
+
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='创建时间'
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name='更新时间'
+    )
+
+    class Meta:
+        db_table = 'product_plans'
+        verbose_name = '产品缴费方案'
+        verbose_name_plural = '产品缴费方案'
+        ordering = ['product', 'sort_order', 'payment_period']
+        indexes = [
+            models.Index(fields=['product', 'is_active']),
+            models.Index(fields=['product', 'payment_period']),
+        ]
+        # 确保同一产品的缴费年期不重复
+        unique_together = ['product', 'payment_period']
+
+    def __str__(self):
+        return f"{self.product.product_name} - {self.payment_period}年缴费"
+
+    def save(self, *args, **kwargs):
+        """保存前自动计算总保费和生成方案名称"""
+        # 自动计算总保费
+        if self.annual_premium and self.payment_period:
+            self.total_premium = self.annual_premium * self.payment_period
+
+        # 自动生成方案名称
+        if not self.plan_name:
+            self.plan_name = f"{self.payment_period}年缴费方案"
+
+        super().save(*args, **kwargs)
 
 
 class InsuranceCompanyRequest(models.Model):
@@ -1159,17 +1359,17 @@ class CustomerCase(models.Model):
         verbose_name='案例标题',
         help_text='例如：35岁IT工程师的家庭保障方案'
     )
-    life_stage = models.CharField(
+    category = models.CharField(
         max_length=50,
-        verbose_name='人生阶段',
-        choices=[
-            ('扶幼保障期', '扶幼保障期（25-30岁）'),
-            ('收入成长期', '收入成长期（31-40岁）'),
-            ('责任高峰期', '责任高峰期（41-50岁）'),
-            ('责任递减期', '责任递减期（51-60岁）'),
-            ('退休期', '退休期（60岁以上）'),
-        ],
-        help_text='客户所处的人生阶段'
+        verbose_name='文章分类',
+        default='未分类',
+        help_text='文章分类，例如：基础认知、重疾险、理财储蓄、理赔售后等'
+    )
+    tags = models.JSONField(
+        verbose_name='标签',
+        default=list,
+        blank=True,
+        help_text='案例标签列表，例如：["扶幼保障期", "高收入", "海外资产配置"]'
     )
     customer_age = models.IntegerField(
         verbose_name='客户年龄',
@@ -1179,7 +1379,7 @@ class CustomerCase(models.Model):
         max_digits=15,
         decimal_places=2,
         verbose_name='年收入',
-        help_text='年收入（台币）'
+        help_text='年收入（港币）'
     )
     family_structure = models.CharField(
         max_length=200,
@@ -1199,7 +1399,7 @@ class CustomerCase(models.Model):
         max_digits=15,
         decimal_places=2,
         verbose_name='年缴保费总额',
-        help_text='所有推荐产品的年缴保费总和（台币）'
+        help_text='所有推荐产品的年缴保费总和（港币）'
     )
     case_image = models.ImageField(
         upload_to='customer_cases/',
@@ -1212,6 +1412,12 @@ class CustomerCase(models.Model):
         verbose_name='案例详细说明',
         help_text='详细描述案例的保障方案和配置理念'
     )
+    content = models.TextField(
+        verbose_name='文章内容',
+        blank=True,
+        default='',
+        help_text='公司新闻/文章的完整内容（Markdown格式），用于替代case_description字段'
+    )
     key_points = models.JSONField(
         verbose_name='关键要点',
         default=list,
@@ -1222,7 +1428,7 @@ class CustomerCase(models.Model):
         max_length=200,
         verbose_name='预算建议',
         blank=True,
-        help_text='例如：年缴保费: 80,000-120,000 台币'
+        help_text='例如：年缴保费: 80,000-120,000 港币'
     )
     sort_order = models.IntegerField(
         default=0,
@@ -1249,17 +1455,336 @@ class CustomerCase(models.Model):
         verbose_name_plural = '客户案例'
         ordering = ['sort_order', '-created_at']
         indexes = [
-            models.Index(fields=['life_stage', 'is_active']),
+            models.Index(fields=['is_active']),
             models.Index(fields=['sort_order']),
         ]
 
     def __str__(self):
-        return f"{self.title} - {self.life_stage}"
+        tags_str = ', '.join(self.tags) if self.tags else '无标签'
+        return f"{self.title} - {tags_str}"
 
     def get_total_premium_display(self):
         """格式化显示总保费"""
-        return f"{self.total_annual_premium:,.0f} 台币"
+        return f"{self.total_annual_premium:,.0f} 港币"
 
     def get_income_display(self):
         """格式化显示年收入"""
-        return f"{self.annual_income:,.0f} 台币"
+        return f"{self.annual_income:,.0f} 港币"
+
+
+class ComparisonReport(models.Model):
+    """计划书对比分析报告"""
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, verbose_name='创建用户', null=True, blank=True)
+    comparison_title = models.CharField(max_length=255, verbose_name='对比标题', default='计划书对比分析')
+
+    # PDF文件的base64数据（存储原始PDF，支持下载）
+    pdf1_base64 = models.TextField(verbose_name='计划书1 PDF Base64', blank=True)
+    pdf1_filename = models.CharField(max_length=255, verbose_name='计划书1文件名', blank=True)
+
+    pdf2_base64 = models.TextField(verbose_name='计划书2 PDF Base64', blank=True)
+    pdf2_filename = models.CharField(max_length=255, verbose_name='计划书2文件名', blank=True)
+
+    pdf3_base64 = models.TextField(verbose_name='计划书3 PDF Base64', blank=True, default='')
+    pdf3_filename = models.CharField(max_length=255, verbose_name='计划书3文件名', blank=True, default='')
+
+    # 关联的三份计划书文档（可选，用于向后兼容）
+    document1 = models.ForeignKey(
+        PlanDocument,
+        on_delete=models.CASCADE,
+        related_name='comparison_as_doc1',
+        verbose_name='计划书1',
+        null=True,
+        blank=True
+    )
+    document2 = models.ForeignKey(
+        PlanDocument,
+        on_delete=models.CASCADE,
+        related_name='comparison_as_doc2',
+        verbose_name='计划书2',
+        null=True,
+        blank=True
+    )
+    document3 = models.ForeignKey(
+        PlanDocument,
+        on_delete=models.CASCADE,
+        related_name='comparison_as_doc3',
+        verbose_name='计划书3',
+        null=True,
+        blank=True
+    )
+
+    # 对比分析结果（JSON格式）
+    comparison_result = models.JSONField(verbose_name='对比数据', default=dict, blank=True)
+
+    # AI生成的对比总结（HTML或Markdown格式）
+    comparison_summary = models.TextField(verbose_name='对比总结', blank=True, default='')
+
+    # 报告格式类型
+    report_format = models.CharField(
+        max_length=10,
+        choices=[
+            ('html', 'HTML'),
+            ('markdown', 'Markdown')
+        ],
+        default='markdown',
+        verbose_name='报告格式'
+    )
+
+    # 状态
+    status = models.CharField(
+        max_length=20,
+        choices=[
+            ('processing', '分析中'),
+            ('completed', '已完成'),
+            ('failed', '失败')
+        ],
+        default='processing',
+        verbose_name='状态'
+    )
+    error_message = models.TextField(verbose_name='错误信息', blank=True)
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'comparison_reports'
+        verbose_name = '计划书对比报告'
+        verbose_name_plural = '计划书对比报告'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"{self.comparison_title} - {self.created_at.strftime('%Y-%m-%d')}"
+
+
+class PlanComparison(models.Model):
+    """计划书直接对比（使用Gemini直接分析PDF）"""
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, verbose_name='创建用户')
+
+    # PDF文件的base64数据（存储原始PDF，支持下载）
+    pdf1_name = models.CharField(max_length=255, verbose_name='计划书1文件名')
+    pdf1_base64 = models.TextField(verbose_name='计划书1 PDF Base64')
+
+    pdf2_name = models.CharField(max_length=255, verbose_name='计划书2文件名')
+    pdf2_base64 = models.TextField(verbose_name='计划书2 PDF Base64')
+
+    pdf3_name = models.CharField(max_length=255, verbose_name='计划书3文件名', blank=True, default='')
+    pdf3_base64 = models.TextField(verbose_name='计划书3 PDF Base64', blank=True, default='')
+
+    # Gemini生成的对比报告（HTML格式）
+    comparison_report = models.TextField(verbose_name='对比报告', blank=True, default='')
+
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'plan_comparisons'
+        verbose_name = '计划书对比'
+        verbose_name_plural = '计划书对比'
+        ordering = ['-created_at']
+
+    def __str__(self):
+        return f"对比: {self.pdf1_name} vs {self.pdf2_name} - {self.created_at.strftime('%Y-%m-%d')}"
+
+
+class ProductPromotion(models.Model):
+    """产品宣传材料模型"""
+    product = models.ForeignKey(
+        InsuranceProduct,
+        on_delete=models.CASCADE,
+        related_name='promotions',
+        verbose_name='所属产品'
+    )
+    title = models.CharField(
+        max_length=200,
+        verbose_name='宣传标题',
+        help_text='宣传材料的标题，例如：产品小册子、产品新闻、产品说明'
+    )
+    content_type = models.CharField(
+        max_length=50,
+        verbose_name='内容类型',
+        choices=[
+            ('news', '新闻'),
+            ('brochure', '产品小册子'),
+            ('guide', '产品说明'),
+            ('video', '视频'),
+            ('article', '文章'),
+            ('other', '其他')
+        ],
+        default='news',
+        help_text='宣传材料的类型'
+    )
+    description = models.TextField(
+        verbose_name='描述',
+        blank=True,
+        help_text='宣传材料的简要描述'
+    )
+    url = models.URLField(
+        verbose_name='链接地址',
+        blank=True,
+        max_length=500,
+        help_text='外部链接，如新闻链接、视频链接等'
+    )
+    pdf_file = models.FileField(
+        upload_to='product_promotions/',
+        verbose_name='PDF文件',
+        blank=True,
+        null=True,
+        help_text='上传产品小册子PDF文件'
+    )
+    pdf_base64 = models.TextField(
+        verbose_name='PDF Base64编码',
+        blank=True,
+        default='',
+        help_text='PDF文件的Base64编码，用于前端下载或预览'
+    )
+    thumbnail = models.ImageField(
+        upload_to='product_promotions/thumbnails/',
+        verbose_name='缩略图',
+        blank=True,
+        null=True,
+        help_text='宣传材料的缩略图'
+    )
+    published_date = models.DateField(
+        verbose_name='发布日期',
+        null=True,
+        blank=True,
+        help_text='宣传材料的发布日期'
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='是否启用',
+        help_text='是否在前端显示此宣传材料'
+    )
+    sort_order = models.IntegerField(
+        default=0,
+        verbose_name='排序',
+        help_text='数字越小越靠前'
+    )
+    view_count = models.IntegerField(
+        default=0,
+        verbose_name='浏览次数'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'product_promotions'
+        verbose_name = '产品宣传材料'
+        verbose_name_plural = '产品宣传材料'
+        ordering = ['product', 'sort_order', '-published_date']
+        indexes = [
+            models.Index(fields=['product', 'is_active']),
+            models.Index(fields=['content_type']),
+        ]
+
+    def __str__(self):
+        return f"{self.product.product_name} - {self.title}"
+
+
+class CompanyNews(models.Model):
+    """保险公司新闻与宣传材料模型"""
+    company = models.ForeignKey(
+        InsuranceCompany,
+        on_delete=models.CASCADE,
+        related_name='news',
+        verbose_name='所属公司'
+    )
+    title = models.CharField(
+        max_length=200,
+        verbose_name='标题',
+        help_text='新闻或宣传材料的标题'
+    )
+    content_type = models.CharField(
+        max_length=50,
+        verbose_name='内容类型',
+        choices=[
+            ('news', '公司新闻'),
+            ('announcement', '公司公告'),
+            ('brochure', '公司小册子'),
+            ('video', '视频'),
+            ('article', '文章'),
+            ('press_release', '新闻稿'),
+            ('report', '年度报告'),
+            ('other', '其他')
+        ],
+        default='news',
+        help_text='内容的类型'
+    )
+    description = models.TextField(
+        verbose_name='描述',
+        blank=True,
+        help_text='新闻或材料的简要描述'
+    )
+    content = models.TextField(
+        verbose_name='正文内容',
+        blank=True,
+        help_text='新闻或材料的完整正文内容（支持HTML）'
+    )
+    url = models.URLField(
+        verbose_name='外部链接',
+        blank=True,
+        max_length=500,
+        help_text='外部新闻链接、视频链接等'
+    )
+    pdf_file = models.FileField(
+        upload_to='company_news/',
+        verbose_name='PDF文件',
+        blank=True,
+        null=True,
+        help_text='上传PDF文件（如公司年报、小册子等）'
+    )
+    pdf_base64 = models.TextField(
+        verbose_name='PDF Base64编码',
+        blank=True,
+        default='',
+        help_text='PDF文件的Base64编码，用于前端下载或预览'
+    )
+    thumbnail = models.ImageField(
+        upload_to='company_news/thumbnails/',
+        verbose_name='缩略图',
+        blank=True,
+        null=True,
+        help_text='新闻或材料的缩略图'
+    )
+    published_date = models.DateField(
+        verbose_name='发布日期',
+        null=True,
+        blank=True,
+        help_text='新闻或材料的发布日期'
+    )
+    is_active = models.BooleanField(
+        default=True,
+        verbose_name='是否启用',
+        help_text='是否在前端显示此内容'
+    )
+    is_featured = models.BooleanField(
+        default=False,
+        verbose_name='是否精选',
+        help_text='标记为精选内容将优先显示'
+    )
+    sort_order = models.IntegerField(
+        default=0,
+        verbose_name='排序',
+        help_text='数字越小越靠前'
+    )
+    view_count = models.IntegerField(
+        default=0,
+        verbose_name='浏览次数'
+    )
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'company_news'
+        verbose_name = '公司新闻与宣传'
+        verbose_name_plural = '公司新闻与宣传'
+        ordering = ['company', '-is_featured', 'sort_order', '-published_date']
+        indexes = [
+            models.Index(fields=['company', 'is_active']),
+            models.Index(fields=['content_type']),
+            models.Index(fields=['is_featured']),
+            models.Index(fields=['published_date']),
+        ]
+
+    def __str__(self):
+        return f"{self.company.name} - {self.title}"

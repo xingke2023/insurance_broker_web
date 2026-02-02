@@ -10,10 +10,10 @@ from .models import InsuranceCompany, InsuranceCompanyRequest
 
 
 @api_view(['GET'])
-@permission_classes([IsAuthenticated])
+@permission_classes([AllowAny])
 def get_insurance_companies(request):
     """
-    获取所有保险公司列表
+    获取所有保险公司列表（公开API，无需认证）
     """
     try:
         companies = InsuranceCompany.objects.filter(is_active=True).order_by('sort_order')
@@ -30,6 +30,8 @@ def get_insurance_companies(request):
                 'bg_color': company.bg_color,
                 'description': company.description,
                 'flagship_product': company.flagship_product,
+                'website_url': company.website_url,
+                'is_active': company.is_active,
             })
 
         return Response({
@@ -50,7 +52,7 @@ def get_insurance_companies(request):
 def get_companies_standard_comparison(request):
     """
     获取所有保险公司的标准退保数据用于对比
-    从 insurance_products 表获取数据，支持按缴费年限筛选
+    ✅ 新版本：使用 ProductPlan 关联表
     【公开API - 无需登录】
 
     ⚠️ 重要变更：返回公司级别数据，包含产品列表
@@ -59,8 +61,12 @@ def get_companies_standard_comparison(request):
     查询参数:
         payment_period: 缴费年限（可选，默认5年）例如：1, 2, 5
         selected_product_ids: 用户选择的产品ID列表，逗号分隔（可选）
+
+    数据来源：
+        - InsuranceProduct: 产品品种表（产品名称、公司等基本信息）
+        - ProductPlan: 缴费方案表（不同年期的年缴金额、退保价值表等）
     """
-    from .models import InsuranceProduct
+    from .models import InsuranceProduct, ProductPlan
 
     try:
         # 获取缴费年限参数，默认为5年
@@ -79,33 +85,58 @@ def get_companies_standard_comparison(request):
             except ValueError:
                 selected_product_ids = []
 
+        # 优化：使用 select_related 和 prefetch_related 减少数据库查询
         companies = InsuranceCompany.objects.filter(is_active=True).order_by('sort_order')
+
+        # 优化：使用 only() 只加载需要的字段，避免加载大字段
+        products_query = InsuranceProduct.objects.filter(
+            company__in=companies,
+            is_active=True
+        ).select_related('company').only(
+            'id', 'product_name', 'company_id', 'sort_order'
+        )
+
+        # 如果用户指定了产品ID，则只返回这些产品
+        if selected_product_ids:
+            products_query = products_query.filter(id__in=selected_product_ids)
+
+        # 优化：预加载所有相关的缴费方案
+        plans_query = ProductPlan.objects.filter(
+            product__in=products_query,
+            payment_period=payment_period,
+            is_active=True
+        ).select_related('product').only(
+            'id', 'product_id', 'payment_period', 'annual_premium', 'surrender_value_table'
+        )
+
+        # 构建产品ID到方案的映射（避免重复查询）
+        product_plan_map = {}
+        for plan in plans_query:
+            product_plan_map[plan.product_id] = plan
 
         company_list = []
         for company in companies:
-            # 从 insurance_products 表查询该公司对应年期的所有产品
-            products_query = InsuranceProduct.objects.filter(
-                company=company,
-                payment_period=payment_period,
-                is_active=True
-            )
-
-            # 如果用户指定了产品ID，则只返回这些产品
-            if selected_product_ids:
-                products_query = products_query.filter(id__in=selected_product_ids)
-
-            products = products_query.order_by('sort_order', 'id')
+            # 第一步：获取该公司的所有产品品种
+            company_products = [p for p in products_query if p.company_id == company.id]
 
             # 解析所有产品数据
             products_data = []
-            for product in products:
+            for product in company_products:
+                # 第二步：从映射中获取方案（避免数据库查询）
+                plan = product_plan_map.get(product.id)
+
+                # 如果没有该年期的方案，跳过
+                if not plan:
+                    continue
+
+                # 第三步：解析该方案的退保价值表
                 standard_data = None
                 has_data = False
 
-                if product.surrender_value_table:
+                if plan.surrender_value_table:
                     try:
                         # surrender_value_table 是 TextField，存储 JSON 字符串
-                        surrender_table = json.loads(product.surrender_value_table)
+                        surrender_table = json.loads(plan.surrender_value_table)
 
                         # 检查是否有有效的数据（支持两种格式）
                         if surrender_table:
@@ -126,7 +157,10 @@ def get_companies_standard_comparison(request):
                 if has_data:  # 只添加有数据的产品
                     products_data.append({
                         'product_id': product.id,
+                        'plan_id': plan.id,  # ✅ 新增：方案ID
                         'product_name': product.product_name,
+                        'payment_period': plan.payment_period,  # ✅ 从方案表获取
+                        'annual_premium': float(plan.annual_premium),  # ✅ 从方案表获取
                         'standard_data': standard_data
                     })
 
@@ -644,4 +678,205 @@ def execute_api_request(request, company_code, request_name):
         return Response({
             'status': 'error',
             'message': f'服务器错误: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_insurance_products(request):
+    """
+    获取保险产品列表
+    支持按公司筛选：?company=公司ID
+    """
+    from .models import InsuranceProduct
+
+    try:
+        company_id = request.GET.get('company')
+
+        if company_id:
+            products = InsuranceProduct.objects.filter(company_id=company_id).select_related('company')
+        else:
+            products = InsuranceProduct.objects.all().select_related('company')
+
+        product_list = []
+        for product in products:
+            product_list.append({
+                'id': product.id,
+                'company': {
+                    'id': product.company.id,
+                    'code': product.company.code,
+                    'name': product.company.name,
+                    'name_en': product.company.name_en,
+                    'icon': product.company.icon,
+                    'color_gradient': product.company.color_gradient,
+                },
+                'product_name': product.product_name,
+                'payment_period': product.payment_period,
+                'annual_premium': str(product.annual_premium),
+                'product_category': product.product_category,
+                'is_withdrawal': product.is_withdrawal,
+                'description': product.description,
+            })
+
+        return Response({
+            'status': 'success',
+            'results': product_list
+        })
+
+    except Exception as e:
+        return Response({
+            'status': 'error',
+            'message': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_insurance_product_detail(request, product_id):
+    """
+    获取保险产品详情
+    ✅ 已更新：包含 ProductPlan 关联方案、官方URL和宣传材料
+    """
+    from .models import InsuranceProduct, ProductPlan, ProductPromotion
+
+    try:
+        product = InsuranceProduct.objects.select_related('company').get(id=product_id)
+
+        # 获取所有关联的方案
+        plans = ProductPlan.objects.filter(product=product, is_active=True).order_by('sort_order', 'payment_period')
+        plans_data = []
+        for plan in plans:
+            plans_data.append({
+                'id': plan.id,
+                'plan_name': plan.plan_name,
+                'payment_period': plan.payment_period,
+                'annual_premium': str(plan.annual_premium),
+                'total_premium': str(plan.total_premium) if plan.total_premium else None,
+                'surrender_value_table': plan.surrender_value_table,
+                'death_benefit_table': plan.death_benefit_table,
+                'irr_rate': str(plan.irr_rate) if plan.irr_rate else None,
+                'plan_description': plan.plan_description,
+                'is_recommended': plan.is_recommended
+            })
+
+        # 获取产品的宣传材料
+        promotions = ProductPromotion.objects.filter(
+            product=product,
+            is_active=True
+        ).order_by('sort_order', '-published_date')
+
+        promotions_data = []
+        for promo in promotions:
+            promotions_data.append({
+                'id': promo.id,
+                'title': promo.title,
+                'content_type': promo.content_type,
+                'content_type_display': promo.get_content_type_display(),
+                'description': promo.description,
+                'url': promo.url,
+                'pdf_file': request.build_absolute_uri(promo.pdf_file.url) if promo.pdf_file else None,
+                'thumbnail': request.build_absolute_uri(promo.thumbnail.url) if promo.thumbnail else None,
+                'published_date': promo.published_date,
+                'view_count': promo.view_count
+            })
+
+        return Response({
+            'status': 'success',
+            'data': {
+                'id': product.id,
+                'company': {
+                    'id': product.company.id,
+                    'code': product.company.code,
+                    'name': product.company.name,
+                    'name_en': product.company.name_en,
+                    'icon': product.company.icon,
+                    'color_gradient': product.company.color_gradient,
+                },
+                'product_name': product.product_name,
+                'product_category': product.product_category,
+                'supported_payment_periods': product.supported_payment_periods,
+                'is_withdrawal': product.is_withdrawal,
+                'description': product.description,
+
+                # 官方链接
+                'url': product.url,
+
+                # 目标受众和分类
+                'target_age_min': product.target_age_min,
+                'target_age_max': product.target_age_max,
+                'target_life_stage': product.target_life_stage,
+                'coverage_type': product.coverage_type,
+                'min_annual_income': str(product.min_annual_income) if product.min_annual_income else None,
+                'features': product.features,
+                'ai_recommendation_prompt': product.ai_recommendation_prompt,
+
+                # 详细内容
+                'plan_summary': product.plan_summary,
+                'plan_details': product.plan_details,
+                'plan_pdf_base64': product.plan_pdf_base64,
+                'product_research_report': product.product_research_report,
+
+                # 方案列表
+                'plans': plans_data,
+
+                # 宣传材料
+                'promotions': promotions_data,
+
+                # 向后兼容字段
+                'payment_period': product.payment_period,
+                'annual_premium': str(product.annual_premium),
+                'surrender_value_table': product.surrender_value_table,
+                'death_benefit_table': product.death_benefit_table,
+            }
+        })
+
+    except InsuranceProduct.DoesNotExist:
+        return Response({
+            'status': 'error',
+            'message': '产品不存在'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({
+            'status': 'error',
+            'message': str(e)
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([AllowAny])
+def get_insurance_company_detail(request, company_id):
+    """
+    获取保险公司详情
+    """
+    try:
+        company = InsuranceCompany.objects.get(id=company_id)
+
+        return Response({
+            'status': 'success',
+            'data': {
+                'id': company.id,
+                'code': company.code,
+                'name': company.name,
+                'name_en': company.name_en,
+                'icon': company.icon,
+                'color_gradient': company.color_gradient,
+                'bg_color': company.bg_color,
+                'description': company.description,
+                'flagship_product': company.flagship_product,
+                'website_url': company.website_url,
+                'is_active': company.is_active,
+            }
+        })
+
+    except InsuranceCompany.DoesNotExist:
+        return Response({
+            'status': 'error',
+            'message': '保险公司不存在'
+        }, status=status.HTTP_404_NOT_FOUND)
+
+    except Exception as e:
+        return Response({
+            'status': 'error',
+            'message': str(e)
         }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)

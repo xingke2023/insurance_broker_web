@@ -1,8 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, GitCompare, Loader2, CheckCircle, Printer, Download, Check, Palette, ChevronDown } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, GitCompare, Loader2, CheckCircle, Printer, Check, Palette, ChevronDown } from 'lucide-react';
 import { useAppNavigate } from '../hooks/useAppNavigate';
 import axios from 'axios';
-import html2canvas from 'html2canvas';
 import CompanyIconDisplay from './CompanyIconDisplay';
 import Calculator from './Calculator';
 
@@ -31,7 +30,7 @@ function CompanyComparisonCC() {
   const [paymentAmount, setPaymentAmount] = useState(10000);
   const [paymentYears, setPaymentYears] = useState(5); // 缴费年限
 
-  const comparisonTableRef = useRef(null); // 用于截图的ref
+  const comparisonTableRef = React.useRef(null); // 用于截图的ref
 
   // 风格主题配置
   const [currentTheme, setCurrentTheme] = useState('googleMaterial'); // classic, modern, dark, fresh, tech, luxury, googleMaterial
@@ -771,42 +770,6 @@ function CompanyComparisonCC() {
     return Object.values(actualColumns).filter(v => v).length;
   };
 
-  const handleDownloadImage = async () => {
-    if (!comparisonTableRef.current) return;
-    try {
-      // 隐藏按钮栏
-      const buttonBar = comparisonTableRef.current.querySelector('.print\\:hidden');
-      if (buttonBar) {
-        buttonBar.style.display = 'none';
-      }
-
-      const canvas = await html2canvas(comparisonTableRef.current, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: currentTheme === 'luxury' ? '#18181b' : '#ffffff'
-      });
-
-      // 恢复按钮栏显示
-      if (buttonBar) {
-        buttonBar.style.display = '';
-      }
-
-      const link = document.createElement('a');
-      link.download = `保险公司对比_${new Date().toLocaleDateString('zh-CN')}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
-    } catch (error) {
-      console.error('下载图片失败:', error);
-      alert('下载图片失败，请重试');
-
-      // 确保恢复按钮栏显示
-      const buttonBar = comparisonTableRef.current?.querySelector('.print\\:hidden');
-      if (buttonBar) {
-        buttonBar.style.display = '';
-      }
-    }
-  };
 
   // 主题切换菜单
   const ThemeSelector = () => (
@@ -871,13 +834,6 @@ function CompanyComparisonCC() {
                   >
                     <Printer className="w-4 h-4" />
                     <span className="hidden sm:inline">打印</span>
-                  </button>
-                  <button
-                    onClick={handleDownloadImage}
-                    className="flex items-center gap-2 px-3 py-2 bg-white/30 backdrop-blur-sm rounded-xl hover:bg-white/40 transition-all text-sm font-semibold text-white whitespace-nowrap"
-                  >
-                    <Download className="w-4 h-4" />
-                    <span className="hidden sm:inline">下载</span>
                   </button>
                   <button
                     onClick={() => setShowColumnSelector(true)}
@@ -1156,102 +1112,88 @@ function CompanyComparisonCC() {
                 </div>
 
                 {/* 列选项 */}
-                <div className="p-3 space-y-3">
+                <div className="p-2.5 space-y-1.5">
                   {/* 数据列分组 */}
                   <div>
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 px-1">数据列</div>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-3 p-2.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">数据列</div>
+                    <div className="grid grid-cols-2 gap-1">
+                      <label className="flex items-center gap-2 px-2 py-1.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.guaranteed}
                           onChange={() => handleToggleColumn('guaranteed')}
-                          className="w-4 h-4 rounded text-blue-500"
+                          className="w-3.5 h-3.5 rounded text-blue-500"
                         />
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-900">保证现金价值</div>
-                        </div>
+                        <span className="text-xs font-semibold text-gray-900">保证现金价值</span>
                       </label>
 
-                      <label className="flex items-center gap-3 p-2.5 bg-orange-50 rounded-lg hover:bg-orange-100 transition-all cursor-pointer">
+                      <label className="flex items-center gap-2 px-2 py-1.5 bg-orange-50 rounded-lg hover:bg-orange-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.nonGuaranteed}
                           onChange={() => handleToggleColumn('nonGuaranteed')}
-                          className="w-4 h-4 rounded text-orange-500"
+                          className="w-3.5 h-3.5 rounded text-orange-500"
                         />
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-900">非保证现金价值</div>
-                        </div>
+                        <span className="text-xs font-semibold text-gray-900">非保证现金价值</span>
                       </label>
 
-                      <label className="flex items-center gap-3 p-2.5 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all cursor-pointer">
+                      <label className="flex items-center gap-2 px-2 py-1.5 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.total}
                           onChange={() => handleToggleColumn('total')}
-                          className="w-4 h-4 rounded text-indigo-500"
+                          className="w-3.5 h-3.5 rounded text-indigo-500"
                         />
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-900">总价值</div>
-                        </div>
+                        <span className="text-xs font-semibold text-gray-900">总价值</span>
                       </label>
 
-                      <label className="flex items-center gap-3 p-2.5 bg-purple-50 rounded-lg hover:bg-purple-100 transition-all cursor-pointer">
+                      <label className="flex items-center gap-2 px-2 py-1.5 bg-purple-50 rounded-lg hover:bg-purple-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.simpleReturn}
                           onChange={() => handleToggleColumn('simpleReturn')}
-                          className="w-4 h-4 rounded text-purple-500"
+                          className="w-3.5 h-3.5 rounded text-purple-500"
                         />
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-900">单利</div>
-                        </div>
+                        <span className="text-xs font-semibold text-gray-900">单利</span>
                       </label>
 
-                      <label className="flex items-center gap-3 p-2.5 bg-green-50 rounded-lg hover:bg-green-100 transition-all cursor-pointer">
+                      <label className="flex items-center gap-2 px-2 py-1.5 bg-green-50 rounded-lg hover:bg-green-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.irr}
                           onChange={() => handleToggleColumn('irr')}
-                          className="w-4 h-4 rounded text-green-500"
+                          className="w-3.5 h-3.5 rounded text-green-500"
                         />
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-900">IRR(年化复利)</div>
-                        </div>
+                        <span className="text-xs font-semibold text-gray-900">IRR(年化复利)</span>
                       </label>
                     </div>
                   </div>
 
                   {/* 分隔线 */}
-                  <div className="border-t-2 border-dashed border-gray-300"></div>
+                  <div className="border-t border-dashed border-gray-300"></div>
 
                   {/* 其他选项分组 */}
                   <div>
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-2 px-1">其他选项</div>
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-3 p-2.5 bg-red-50 rounded-lg hover:bg-red-100 transition-all cursor-pointer">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">其他选项</div>
+                    <div className="grid grid-cols-2 gap-1">
+                      <label className="flex items-center gap-2 px-2 py-1.5 bg-red-50 rounded-lg hover:bg-red-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.breakEven}
                           onChange={() => handleToggleColumn('breakEven')}
-                          className="w-4 h-4 rounded text-red-500"
+                          className="w-3.5 h-3.5 rounded text-red-500"
                         />
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-900">回本期标记</div>
-                        </div>
+                        <span className="text-xs font-semibold text-gray-900">回本期标记</span>
                       </label>
 
-                      <label className="flex items-center gap-3 p-2.5 bg-pink-50 rounded-lg hover:bg-pink-100 transition-all cursor-pointer">
+                      <label className="flex items-center gap-2 px-2 py-1.5 bg-pink-50 rounded-lg hover:bg-pink-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.highlightBest}
                           onChange={() => handleToggleColumn('highlightBest')}
-                          className="w-4 h-4 rounded text-pink-500"
+                          className="w-3.5 h-3.5 rounded text-pink-500"
                         />
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-900">按年度最优</div>
-                        </div>
+                        <span className="text-xs font-semibold text-gray-900">按年度最优</span>
                       </label>
                     </div>
                   </div>

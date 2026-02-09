@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { useAppNavigate } from '../hooks/useAppNavigate';
@@ -71,12 +71,12 @@ function PDFFooterRemover() {
   const [error, setError] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [showPreview, setShowPreview] = useState(false);
-  const canvasRef = useRef(null);
+  const canvasRef = React.useRef(null);
   const [pdfDoc, setPdfDoc] = useState(null);
   const [pageNum, setPageNum] = useState(1);
   const [numPages, setNumPages] = useState(0);
   const [canvasHeight, setCanvasHeight] = useState(0);
-  const renderingRef = useRef(false); // 渲染锁，防止并发渲染
+  const renderingRef = React.useRef(false); // 渲染锁，防止并发渲染
 
   // 保存自定义文字到localStorage
   useEffect(() => {

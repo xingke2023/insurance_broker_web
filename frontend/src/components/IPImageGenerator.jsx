@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
   ArrowLeftIcon,
@@ -11,8 +11,8 @@ import { generateIPImage, getSavedIPImage, saveIPImage, getUsageStats } from '..
 
 function IPImageGenerator() {
   const navigate = useNavigate();
-  const fileInputRef = useRef(null);
-  const cameraInputRef = useRef(null);
+  const fileInputRef = React.useRef(null);
+  const cameraInputRef = React.useRef(null);
 
   const [uploadedImage, setUploadedImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);

@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, User, Building2, Calendar, DollarSign, FileText, Loader2, AlertCircle, MessageSquare, Send, X, ChevronDown, ChevronUp, Table, Eye } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, User, Building2, Calendar, DollarSign, FileText, Loader2, AlertCircle, MessageSquare, Send, X, ChevronDown, ChevronUp, Table, Eye, FileSpreadsheet } from 'lucide-react';
 import { useParams, useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { authFetch } from '../utils/authFetch';
 import ReactMarkdown from 'react-markdown';
 import rehypeRaw from 'rehype-raw';
+import * as XLSX from 'xlsx';
 
 function DocumentDetail() {
   const { id } = useParams();
@@ -281,7 +282,7 @@ function DocumentDetail() {
   const [chatMessages, setChatMessages] = useState([]);
   const [chatInput, setChatInput] = useState('');
   const [chatLoading, setChatLoading] = useState(false);
-  const chatMessagesEndRef = useRef(null);
+  const chatMessagesEndRef = React.useRef(null);
 
   // Extract summary states
   const [extractingSummary, setExtractingSummary] = useState(false);
@@ -345,6 +346,101 @@ function DocumentDetail() {
       setLoading(false);
     }
   };
+
+  // 下载现金价值表 Excel
+  const handleDownloadCashValueExcel = () => {
+    if (!document || !document.table1) {
+      alert('暂无现金价值表数据');
+      return;
+    }
+
+    try {
+      const table1Data = typeof document.table1 === 'string' ? JSON.parse(document.table1) : document.table1;
+
+      // 检查数据格式
+      let tableData = null;
+      if (table1Data.surrender_value_table && Array.isArray(table1Data.surrender_value_table)) {
+        // 新格式：JSON 格式数据
+        tableData = table1Data.surrender_value_table;
+      } else if (table1Data.data && Array.isArray(table1Data.data)) {
+        // 旧格式：原始表格数据
+        tableData = table1Data.data;
+      }
+
+      if (!tableData || tableData.length === 0) {
+        alert('现金价值表数据为空');
+        return;
+      }
+
+      // 构建 Excel 数据
+      const excelData = [];
+
+      // 添加标题
+      excelData.push([`${document.file_name || '计划书'} - 现金价值表`]);
+      excelData.push([]); // 空行
+
+      // 添加基本信息
+      if (table1Data.policy_info) {
+        const info = table1Data.policy_info;
+        excelData.push(['基本信息']);
+        if (info.姓名) excelData.push(['受保人姓名', info.姓名]);
+        if (info.年龄) excelData.push(['受保人年龄', info.年龄]);
+        if (info.性别) excelData.push(['性别', info.性别]);
+        if (info.保险公司名称) excelData.push(['保险公司', info.保险公司名称]);
+        if (info.产品名称) excelData.push(['产品名称', info.产品名称]);
+        if (info.保额) excelData.push(['保额', info.保额]);
+        if (info.年缴保费) excelData.push(['年缴保费', info.年缴保费]);
+        if (info.缴费年数) excelData.push(['缴费年数', info.缴费年数]);
+        if (info.总保费) excelData.push(['总保费', info.总保费]);
+        excelData.push([]); // 空行
+      }
+
+      // 添加表格数据
+      excelData.push(['现金价值表']);
+
+      // 处理表头
+      if (tableData.length > 0) {
+        const firstRow = tableData[0];
+        if (typeof firstRow === 'object' && !Array.isArray(firstRow)) {
+          // JSON 格式（对象数组）
+          const headers = Object.keys(firstRow);
+          excelData.push(headers);
+
+          // 添加数据行
+          tableData.forEach(row => {
+            excelData.push(headers.map(key => row[key] !== undefined ? row[key] : ''));
+          });
+        } else if (Array.isArray(firstRow)) {
+          // 数组格式
+          tableData.forEach(row => {
+            excelData.push(row);
+          });
+        }
+      }
+
+      // 创建工作簿
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(excelData);
+
+      // 设置列宽
+      const colWidths = excelData[0] ? excelData[0].map(() => ({ wch: 18 })) : [];
+      ws['!cols'] = colWidths;
+
+      // 添加工作表
+      XLSX.utils.book_append_sheet(wb, ws, '现金价值表');
+
+      // 生成文件名
+      const fileName = `${document.file_name?.replace('.pdf', '') || '计划书'}_现金价值表_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`;
+
+      // 下载
+      XLSX.writeFile(wb, fileName);
+      console.log('✅ Excel下载成功:', fileName);
+    } catch (error) {
+      console.error('❌ 下载现金价值表失败:', error);
+      alert('下载现金价值表失败，请重试');
+    }
+  };
+
 
   const formatNumber = (num) => {
     if (!num) return '-';
@@ -718,18 +814,32 @@ function DocumentDetail() {
                 <ArrowLeft className="w-4 h-4" />
                 <span className="text-sm">返回</span>
               </button>
-              <button
-                onClick={handleOpenChat}
-                disabled={document.processing_stage !== 'all_completed'}
-                className={`flex items-center space-x-1.5 px-3 py-1 rounded-lg shadow transition-all ${
-                  document.processing_stage !== 'all_completed'
-                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                    : 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:shadow-lg'
-                }`}
-              >
-                <MessageSquare className="w-4 h-4" />
-                <span className="text-sm">计划书助手</span>
-              </button>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleDownloadCashValueExcel}
+                  disabled={!document.table1}
+                  className={`flex items-center space-x-1 px-2 py-1 rounded-lg shadow transition-all ${
+                    !document.table1
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-lg'
+                  }`}
+                  title="下载现金价值表"
+                >
+                  <FileSpreadsheet className="w-3 h-3" />
+                </button>
+                <button
+                  onClick={handleOpenChat}
+                  disabled={document.processing_stage !== 'all_completed'}
+                  className={`flex items-center space-x-1.5 px-3 py-1 rounded-lg shadow transition-all ${
+                    document.processing_stage !== 'all_completed'
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                      : 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:shadow-lg'
+                  }`}
+                >
+                  <MessageSquare className="w-4 h-4" />
+                  <span className="text-sm">助手</span>
+                </button>
+              </div>
             </div>
             <h1 className="text-base font-bold text-gray-800 line-clamp-2 break-words">{document.file_name}</h1>
           </div>
@@ -747,18 +857,33 @@ function DocumentDetail() {
               <div className="h-6 w-px bg-gray-300 flex-shrink-0"></div>
               <h1 className="text-xl font-bold text-gray-800 truncate">{document.file_name}</h1>
             </div>
-            <button
-              onClick={handleOpenChat}
-              disabled={document.processing_stage !== 'all_completed'}
-              className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg shadow transition-all flex-shrink-0 ${
-                document.processing_stage !== 'all_completed'
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                  : 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:shadow-lg'
-              }`}
-            >
-              <MessageSquare className="w-4 h-4" />
-              <span>计划书助手</span>
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                onClick={handleDownloadCashValueExcel}
+                disabled={!document.table1}
+                className={`flex items-center space-x-2 px-3 py-1.5 rounded-lg shadow transition-all ${
+                  !document.table1
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-green-600 to-emerald-600 text-white hover:shadow-lg'
+                }`}
+                title="下载现金价值表"
+              >
+                <FileSpreadsheet className="w-4 h-4" />
+                <span className="text-sm">现金价值表</span>
+              </button>
+              <button
+                onClick={handleOpenChat}
+                disabled={document.processing_stage !== 'all_completed'}
+                className={`flex items-center space-x-2 px-4 py-1.5 rounded-lg shadow transition-all ${
+                  document.processing_stage !== 'all_completed'
+                    ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
+                    : 'bg-gradient-to-r from-blue-600 to-cyan-600 text-white hover:shadow-lg'
+                }`}
+              >
+                <MessageSquare className="w-4 h-4" />
+                <span>计划书助手</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

@@ -49,7 +49,8 @@ def run_playwright_scraper(product_url: str, product_id: int, use_gemini: bool =
 
     # Playwright脚本路径（统一使用混合模式脚本）
     playwright_skill_dir = "/home/ubuntu/.claude/skills/playwright-skill"
-    scraper_script = "/tmp/playwright-scraper-product-hybrid.js"
+    project_root = os.path.dirname(os.path.abspath(__file__))
+    scraper_script = os.path.join(project_root, "scripts/playwright/product-scraper.js")
 
     # 检查脚本是否存在
     if not os.path.exists(scraper_script):
@@ -109,8 +110,9 @@ def run_playwright_scraper(product_url: str, product_id: int, use_gemini: bool =
         if result.returncode != 0:
             raise RuntimeError(f"Playwright脚本执行失败，返回码: {result.returncode}")
 
-        # 读取爬取结果
-        output_file = f"/tmp/product-scrape-{product_id}.json"
+        # 读取爬取结果（从项目目录）
+        output_dir = os.path.join(project_root, "temp_files/playwright_output")
+        output_file = os.path.join(output_dir, f"product-scrape-{product_id}.json")
         if not os.path.exists(output_file):
             raise FileNotFoundError(f"未找到爬取结果文件: {output_file}")
 

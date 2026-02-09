@@ -1,5 +1,32 @@
 # 保险计划书智能分析系统 - 项目分析
 
+## 最近更新
+
+### 2026年2月5日 - 文档详情页下载单页PDF功能
+- **功能**：在文档详情页（`/document/{id}`）添加"下载单页PDF"按钮
+- **实现**：
+  - 创建新API端点 `POST /api/pdf/download-clean-document`
+  - 使用PyMuPDF自动去除页眉（80px）和页脚（60px）
+  - 前端从下载PNG截图改为下载处理后的PDF文件
+- **位置**：`api/pdf_views.py:918-1016`、`DocumentDetail.jsx:448-507`
+- **按钮**：紫色渐变按钮，带相机图标，标题"下载单页PDF（去除页眉页脚）"
+- **优势**：保留PDF格式、保持矢量图形质量、去除代理商信息
+- **文档**：详见 `DOCUMENT_DETAIL_CLEAN_PDF.md`
+
+### 2026年2月5日 - 产品对比功能修复
+- **问题**：Plan Management 页面产品对比功能无法显示数据
+- **根因**：API 返回的 `table1` 是 JSON 字符串，前端未解析直接访问 `data` 属性
+- **修复**：
+  - 在 `PlanDocumentManagement.jsx:549-560` 添加字符串解析逻辑
+  - 在 `PlanDocumentManagement.jsx:568-595` 增强字段名匹配规则
+  - 支持更多字段变体：`terminal_bonus_cash_value`, `reversionary_bonus_cash_value`
+- **影响**：产品对比功能现在可以正常显示数据
+- **文档更新**：
+  - 添加"产品对比功能"完整说明
+  - 明确实际数据格式（`data` 二维数组 vs `surrender_value_table`）
+  - 添加调试指南和常见问题排查流程
+- **分页优化**：文档列表每页显示 10 条记录（原 50 条）
+
 ## 项目概述
 
 这是一个**保险计划书智能分析系统**（Insurance Plan Analyzer），使用全栈技术构建的现代化Web应用。主要用于自动化处理和分析保险计划书文档。
@@ -187,7 +214,9 @@ const startPollingStatus = (documentId) => {
 
 #### 数据存储结构
 
-**table1 字段**（JSON 格式）：
+**⚠️ 重要说明**：文档中描述的"新格式"（surrender_value_table）是设计目标，但**当前实际使用的是"标准格式"**（data数组）。
+
+**table1 字段 - 理论格式（Gemini新格式，未使用）**：
 ```json
 {
   "policy_info": {
@@ -209,6 +238,40 @@ const startPollingStatus = (documentId) => {
   "death_benefit_table": [...]
 }
 ```
+
+**table1 字段 - 实际格式（当前使用）**：
+```json
+{
+  "table_name": "退保价值表",
+  "row_count": 138,
+  "fields": ["保單年度終結", "已繳保費總額", "保證現金價值", "保額增值紅利之現金價值", "終期紅利之現金價值", "退保發還金額總額"],
+  "data": [
+    ["policy_year", "total_premiums_paid", "guaranteed_cash_value", "reversionary_bonus_cash_value", "terminal_bonus_cash_value", "surrender_value_after_withdrawal"],
+    ["1", "10000", "0", "0", "0", "0"],
+    ["2", "20000", "0", "0", "0", "0"],
+    ["3", "30000", "0", "0", "0", "0"]
+  ],
+  "policy_info": {
+    "保險公司名稱": "安盛保險(百慕達)有限公司",
+    "產品名稱": "盛利 II 儲蓄保險 – 至尊",
+    "姓名": "XIAO MING",
+    "年齡": "1",
+    "性別": "女",
+    "保額": "50000",
+    "年繳保費": "10000.13",
+    "繳費年數": "5",
+    "總保費": "50000.65",
+    "保險期限": "138"
+  }
+}
+```
+
+**关键特征**：
+- ✅ `fields`：中文字段名数组（仅用于显示）
+- ✅ `data[0]`：英文字段名数组（用于程序匹配）
+- ✅ `data[1]` 开始：实际数据行（**所有值都是字符串**）
+- ✅ `policy_info`：保单基本信息（**所有值都是字符串**）
+- ✅ 数据库存储格式：JSON字符串（API返回时需先 `JSON.parse()`）
 
 **数据库字段**（自动从 policy_info 提取）：
 - `insured_name` - 受保人姓名
@@ -238,14 +301,21 @@ const startPollingStatus = (documentId) => {
 
 #### 与旧流程的对比
 
-| 对比项 | 旧流程（已废弃） | **新流程（当前）** |
-|--------|-----------------|------------------|
-| **任务数量** | 6 个任务链 | **1 个任务** ⚡ |
-| **处理方式** | OCR → 提取表格源代码 → 分析 | **Gemini 直接分析 PDF** |
-| **中间步骤** | content → tablecontent → tablesummary | **直接到 table1** |
-| **数据存储** | 多个字段分散 | **table1 JSON + 数据库字段** |
-| **处理时间** | 较长（多步骤串行） | **更快（一步完成）** |
-| **依赖服务** | PaddleLayout OCR + Gemini | **仅 Gemini** |
+| 对比项 | 旧流程（已废弃） | **新流程（文档描述）** | **实际情况** |
+|--------|-----------------|---------------------|------------|
+| **任务数量** | 6 个任务链 | **1 个任务** ⚡ | 1 个任务 ✅ |
+| **处理方式** | OCR → 提取表格源代码 → 分析 | **Gemini 直接分析 PDF** | Gemini 分析 ✅ |
+| **数据格式** | 多个字段分散 | `surrender_value_table` 数组 | **`data` 二维数组** ⚠️ |
+| **字段名格式** | - | JSON对象键 | **英文字段名行 + 数据行** ⚠️ |
+| **数据类型** | - | 数字 | **字符串** ⚠️ |
+| **处理时间** | 较长（多步骤串行） | **更快（一步完成）** | 更快 ✅ |
+| **依赖服务** | PaddleLayout OCR + Gemini | **仅 Gemini** | 仅 Gemini ✅ |
+
+**⚠️ 数据格式说明**：
+- 文档中描述的是理想的新格式（`surrender_value_table` 数组）
+- 实际系统使用的是标准格式（`data` 二维数组，第0行是英文字段名）
+- 所有数值都是字符串格式（需要前端转换为数字）
+- 产品对比功能已适配实际格式
 
 #### 技术实现
 
@@ -300,6 +370,143 @@ const startPollingStatus = (documentId) => {
 - 重新调用PaddleLayout API识别PDF
 - 自动触发后续表格提取和分析任务
 - API路径：`POST /api/ocr/documents/{id}/re-ocr/`
+
+#### 产品对比功能 ⭐ 重要功能
+
+**页面路径**：`/plan-document-management`（Plan Management页面）
+**前端组件**：`frontend/src/components/PlanDocumentManagement.jsx`
+
+##### 功能说明
+
+- **批量对比**：选择2个或多个已分析的计划书，点击"产品对比"按钮
+- **对比维度**：显示3个核心字段
+  - 已缴保费（`total_premiums_paid`）
+  - 提取总额（`withdrawal_amount`）
+  - 退保价值（`surrender_value_after_withdrawal`/`total_cash_value`）
+- **自定义年度**：支持自定义显示的保单年度或年龄
+  - 默认年度：`1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,21,22,23,24,25,30,35,40,45,50,60,70,80,90,100`
+  - 支持范围格式：`1-10` 自动展开为 `1,2,3,...,10`
+  - 支持年龄格式：`30岁,40岁` 按年龄匹配数据
+  - 纯数字默认为保单年度
+- **分页显示**：文档列表每页显示10条记录
+
+##### 数据格式要求
+
+对比功能要求文档必须包含有效的 `table1` 数据。系统支持以下数据格式：
+
+**格式1：新格式（Gemini，未使用）**
+```json
+{
+  "policy_info": {...},
+  "surrender_value_table": [
+    {"保单年度": 1, "保证现金价值": 1000, ...}
+  ]
+}
+```
+
+**格式2：标准格式（当前使用）**
+```json
+{
+  "table_name": "...",
+  "row_count": 138,
+  "fields": ["保單年度終結", "已繳保費總額", ...],
+  "data": [
+    ["policy_year", "total_premiums_paid", "guaranteed_cash_value", "reversionary_bonus_cash_value", "terminal_bonus_cash_value", "surrender_value_after_withdrawal"],
+    ["1", "10000", "0", "0", "0", "0"],
+    ["2", "20000", "0", "0", "0", "0"]
+  ],
+  "policy_info": {...}
+}
+```
+
+**关键说明**：
+- `data[0]` 是英文字段名（用于字段匹配）
+- `data[1]` 开始才是实际数据行
+- 所有数值都是**字符串格式**（`"10000"` 而非 `10000`）
+- `fields` 是中文字段名（仅用于显示）
+
+##### 字段名映射规则
+
+系统自动识别多种字段名变体（`PlanDocumentManagement.jsx:568-595`）：
+
+| 标准字段 | 识别的变体 |
+|---------|-----------|
+| `policy_year` | `policy_year` |
+| `total_premiums_paid` | `total_premiums_paid`, `total_premium_paid`, `premiums_paid` |
+| `guaranteed_cash_value` | `guaranteed_cash_value`, `guaranteed` |
+| `non_guaranteed_cash_value` | `non_guaranteed_cash_value`, `terminal_bonus_cash_value`, `reversionary_bonus_cash_value`, `terminal_dividend`, `non_guaranteed` |
+| `total_cash_value` | `total_cash_value`, `surrender_value_after_withdrawal`, `total_surrender_value`, `total_value`, `total` |
+| `withdrawal_amount` | `withdrawal_amount` |
+
+**实际数据库字段示例**（安盛盛利 II）：
+- `policy_year` - 保单年度
+- `total_premiums_paid` - 已缴保费总额
+- `guaranteed_cash_value` - 保证现金价值
+- `reversionary_bonus_cash_value` - 保额增值红利之现金价值
+- `terminal_bonus_cash_value` - 终期红利之现金价值
+- `surrender_value_after_withdrawal` - 退保发还金额总额（= 总现金价值）
+
+##### 技术实现要点
+
+**数据解析**（2026年2月修复）：
+```javascript
+// ⚠️ 关键修复：API返回的table1是字符串，需先解析
+let table1Obj = doc.table1;
+if (typeof doc.table1 === 'string') {
+  try {
+    table1Obj = JSON.parse(doc.table1);
+  } catch (e) {
+    console.error('❌ 解析 table1 失败:', doc.file_name, e);
+    table1Obj = {};
+  }
+}
+
+const tableData = table1Obj?.data || [];  // ✅ 现在可以正确获取data数组
+```
+
+**字段索引查找**：
+```javascript
+// 使用 findIndex 在英文字段名行（data[0]）中查找字段位置
+const fieldIndexes = {
+  policy_year: englishFields.findIndex(f => f === 'policy_year'),
+  total_cash_value: englishFields.findIndex(f =>
+    f === 'total_cash_value' ||
+    f === 'surrender_value_after_withdrawal' ||
+    f === 'total_surrender_value'
+  )
+};
+```
+
+**数据提取**：
+```javascript
+// 从data[1]开始遍历数据行
+const dataRows = tableData.slice(1);
+const rowData = dataRows.find(row => {
+  const policyYear = row[fieldIndexes.policy_year];
+  return policyYear === targetPolicyYear;  // 支持字符串和数字匹配
+});
+```
+
+##### 常见问题排查
+
+**问题1：对比表格显示空白**
+- **原因**：`table1` 是字符串未解析，导致 `doc.table1.data` 为 `undefined`
+- **修复**：已在 `PlanDocumentManagement.jsx:549-560` 添加字符串解析逻辑
+
+**问题2：字段值显示为空**
+- **原因**：字段名不匹配，`findIndex` 返回 `-1`
+- **排查**：检查 `console.log` 输出的 `englishFields` 和 `fieldIndexes`
+- **修复**：在字段映射规则中添加新的变体名称
+
+**问题3：年度匹配错误**
+- **原因**：保单年度（数字）和年龄（带"岁"）混淆
+- **区分**：纯数字视为保单年度，带"岁"的按年龄匹配
+
+##### 相关文件
+
+- `frontend/src/components/PlanDocumentManagement.jsx` - 文档管理和对比主组件
+- `api/ocr_views.py:223` - `get_saved_documents()` API（返回table1字符串）
+- `api/models.py` - `PlanDocument` 模型定义
 
 ### 4. PDF 工具箱 Pro（PDF Footer Remover 2）
 
@@ -843,6 +1050,101 @@ if not first_cell.isdigit():
 year = int(first_cell)
 return year == 1  # 数据行，判断是否为1
 ```
+
+### 产品对比功能调试
+
+**问题排查流程**：
+
+1. **检查API返回的数据格式**
+```python
+# Django Shell
+from api.models import PlanDocument
+import json
+
+doc = PlanDocument.objects.get(id=254)
+table1_obj = json.loads(doc.table1)
+
+# 检查结构
+print(f"Keys: {list(table1_obj.keys())}")  # 应包含: table_name, fields, data, policy_info
+print(f"Fields: {table1_obj['fields']}")   # 中文字段名
+print(f"Data[0]: {table1_obj['data'][0]}") # 英文字段名
+print(f"Data[1]: {table1_obj['data'][1]}") # 第一行数据
+```
+
+2. **检查前端数据接收**
+```javascript
+// 浏览器控制台
+console.log('documents:', documents);
+console.log('第一个文档的table1类型:', typeof documents[0].table1);
+console.log('第一个文档的table1内容:', documents[0].table1);
+
+// 如果是字符串，需要手动解析测试
+let table1 = JSON.parse(documents[0].table1);
+console.log('解析后的data长度:', table1.data.length);
+console.log('英文字段名:', table1.data[0]);
+```
+
+3. **检查字段匹配**
+```javascript
+// 在 handleCompareProducts 函数中已有详细日志
+// 查看控制台输出：
+// - "📊 文档: xxx"
+// - "英文字段: [...]"
+// - "字段索引: {...}"
+// - "第一行数据: [...]"
+
+// 如果字段索引为-1，说明字段名不匹配
+// 需要在 PlanDocumentManagement.jsx:568-595 添加新的变体
+```
+
+4. **检查数据提取**
+```javascript
+// 查看对比数据
+console.log('window.comparisonData:', window.comparisonData);
+console.log('products数量:', window.comparisonData.products.length);
+console.log('targetAges:', window.comparisonData.targetAges);
+
+// 检查第一个产品的ageData
+let p1 = window.comparisonData.products[0];
+console.log('产品1名称:', p1.name);
+console.log('产品1 ageData:', p1.ageData);
+console.log('产品1第一个年度数据:', p1.ageData[window.comparisonData.targetAges[0]]);
+```
+
+**常见错误修复**：
+
+```javascript
+// ❌ 错误：直接使用 doc.table1.data（table1是字符串）
+const tableData = doc.table1?.data || [];
+
+// ✅ 正确：先解析再访问
+let table1Obj = doc.table1;
+if (typeof doc.table1 === 'string') {
+  table1Obj = JSON.parse(doc.table1);
+}
+const tableData = table1Obj?.data || [];
+```
+
+```javascript
+// ❌ 错误：字段名匹配不完整
+non_guaranteed_cash_value: englishFields.findIndex(f =>
+  f === 'non_guaranteed_cash_value'
+)
+
+// ✅ 正确：支持多种变体
+non_guaranteed_cash_value: englishFields.findIndex(f =>
+  f === 'non_guaranteed_cash_value' ||
+  f === 'terminal_bonus_cash_value' ||
+  f === 'reversionary_bonus_cash_value'
+)
+```
+
+**调试技巧**：
+
+1. **使用 window 全局变量**：代码已将对比数据暴露到 `window.comparisonData`
+2. **开启详细日志**：代码已有大量 `console.log`，打开控制台查看
+3. **逐步验证**：先检查API返回 → 再检查数据解析 → 最后检查字段匹配
+4. **对比多个文档**：不同保险公司的字段名可能不同，多测试几个
 
 ## 生产部署建议
 

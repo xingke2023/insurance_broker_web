@@ -15,7 +15,9 @@ import {
   ScanLine,
   FileEdit,
   PenTool,
-  BookOpen
+  BookOpen,
+  BarChart3,
+  Users
 } from 'lucide-react';
 
 function HomePage() {
@@ -44,22 +46,26 @@ function HomePage() {
     {
       category: '产品与计划书',
       tools: [
-        { name: '港险产品对比', icon: FileText, action: () => onNavigate('company-comparison'), color: 'from-purple-500 via-purple-600 to-pink-700' },
+        { name: '港险产品对比', icon: BarChart3, action: () => onNavigate('company-comparison'), color: 'from-purple-500 via-purple-600 to-pink-700' },
         { name: '港险产品目录', icon: Folder, action: () => onNavigate('insurance-products'), color: 'from-cyan-500 via-blue-600 to-indigo-700' },
+        { name: '香港各大保险公司名单', icon: Users, action: () => onNavigate('insurance-companies'), color: 'from-emerald-500 via-teal-600 to-cyan-700' },
       ]
     },
     {
       category: '港险顾问与港险案例分析',
       tools: [
         { name: '港险顾问', icon: Sparkles, action: () => isAuthenticated ? onNavigate('customer-cases') : setShowLogin(true), color: 'from-blue-500 via-cyan-600 to-teal-700' },
-        { name: '港险案例汇编', icon: BookOpen, action: () => onNavigate('customer-case-library'), color: 'from-teal-500 via-emerald-600 to-green-700' },
+        { name: '港险案例汇编', icon: BookOpen, action: () => onNavigate('customer-case-library'), color: 'from-indigo-500 via-purple-600 to-pink-700' },
       ]
     },
     {
       category: '港险销售赋能工具',
       tools: [
-        { name: '计划书分析', icon: Folder, action: () => isAuthenticated ? onNavigate('plan-management') : setShowLogin(true), color: 'from-blue-500 via-blue-600 to-indigo-700' },
+        { name: '计划书概要与数据提取', icon: Folder, action: () => isAuthenticated ? onNavigate('plan-management') : setShowLogin(true), color: 'from-blue-500 via-blue-600 to-indigo-700' },
+        { name: '计划书AI对比工具', icon: BarChart3, action: () => isAuthenticated ? onNavigate('plan-comparison') : setShowLogin(true), color: 'from-indigo-500 via-blue-600 to-cyan-700' },
         { name: '计划书制作', icon: FileText, action: () => isAuthenticated ? onNavigate('plan-builder') : setShowLogin(true), color: 'from-purple-500 via-purple-600 to-pink-700' },
+        { name: '计划书擦除工具', icon: FileEdit, action: () => isAuthenticated ? onNavigate('pdf-footer-remover2') : setShowLogin(true), color: 'from-purple-500 via-fuchsia-600 to-pink-700' },
+        { name: '个人办公助手', icon: Sparkles, action: () => isAuthenticated ? onNavigate('dashboard') : setShowLogin(true), color: 'from-pink-500 via-rose-600 to-rose-700' },
       ]
     }
   ];
@@ -114,17 +120,60 @@ function HomePage() {
 
             {/* Second Row (Mobile) / Right Side (Desktop): Logo and Title */}
             <div className="flex items-center gap-2 sm:gap-3 sm:order-1">
-              <div className="hidden sm:flex w-14 h-14 md:w-16 md:h-16 lg:w-18 lg:h-18 bg-gradient-to-br from-blue-500 to-blue-600 rounded-2xl items-center justify-center flex-shrink-0 shadow-[0_4px_16px_rgba(59,130,246,0.4)] hover:shadow-[0_6px_20px_rgba(59,130,246,0.5)] transition-all">
-                <Sparkles className="w-7 h-7 md:w-8 md:h-8 lg:w-9 lg:h-9 text-white drop-shadow-lg" />
+              <div className="hidden sm:flex w-10 h-10 md:w-12 md:h-12 bg-gradient-to-br from-blue-500 to-blue-600 rounded-xl items-center justify-center flex-shrink-0 shadow-[0_4px_12px_rgba(59,130,246,0.4)] transition-all">
+                <Sparkles className="w-5 h-5 md:w-6 md:h-6 text-white drop-shadow-lg" />
               </div>
               <div className="flex-1 min-w-0">
-                <h1 className="text-2xl sm:text-3xl md:text-3xl lg:text-4xl xl:text-4xl font-bold text-white leading-tight tracking-tight drop-shadow-lg">{t('header.title')}</h1>
-                <p className="text-xs sm:text-sm text-gray-300 hidden sm:block font-medium">{t('header.subtitle')}</p>
+                <h1 className="text-xl sm:text-2xl font-bold text-white leading-tight tracking-tight drop-shadow-lg">Openclaw港险办公流程自动化专家</h1>
+                <p className="text-[10px] sm:text-xs text-gray-300 hidden sm:block font-medium">香港保险公司与保险产品AI赋能宣传专题网站</p>
               </div>
             </div>
           </div>
         </div>
       </header>
+
+      {/* Hero Section */}
+      <section className="relative h-[400px] sm:h-[500px] lg:h-[550px] overflow-hidden flex items-center justify-center">
+        {/* Background Image with Overlay */}
+        <div className="absolute inset-0 z-0">
+          <img
+            src="https://images.unsplash.com/photo-1497366216548-37526070297c?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80"
+            alt="Office Hero"
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-gray-900/80 via-gray-900/40 to-transparent"></div>
+          <div className="absolute inset-0 bg-black/30"></div>
+        </div>
+
+        {/* Hero Content */}
+        <div className="relative z-10 max-w-7xl mx-auto px-6 sm:px-8 lg:px-12 w-full">
+          <div className="max-w-3xl">
+            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-extrabold text-white mb-6 leading-tight drop-shadow-[0_4px_12px_rgba(0,0,0,0.5)]">
+              港险办公Openclaw应用系统
+            </h2>
+            <div className="w-20 h-1.5 bg-blue-500 mb-6 rounded-full"></div>
+            <p className="text-lg sm:text-xl lg:text-2xl text-gray-100 mb-10 leading-relaxed drop-shadow-lg font-medium max-w-2xl">
+              涵盖计划书制作，各类消息提醒自动化办公，为港险从业者打造专业、高效的AI数字化办公体验。
+            </p>
+            <div className="flex flex-wrap gap-4">
+              <button
+                onClick={() => onNavigate('product-demo')}
+                className="px-8 py-3.5 bg-blue-600 text-white rounded-2xl font-bold text-lg hover:bg-blue-500 transition-all shadow-[0_8px_20px_rgba(37,99,235,0.4)] hover:shadow-[0_12px_28px_rgba(37,99,235,0.5)] hover:scale-105 active:scale-95"
+              >
+                产品功能演示
+              </button>
+              {!isAuthenticated && (
+                <button
+                  onClick={() => setShowRegister(true)}
+                  className="px-8 py-3.5 bg-white/10 backdrop-blur-md border border-white/30 text-white rounded-2xl font-bold text-lg hover:bg-white/20 transition-all hover:scale-105 active:scale-95"
+                >
+                  免费注册
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      </section>
 
       {/* 主要工具展示 */}
       <section className="py-6 sm:py-8">

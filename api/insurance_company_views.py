@@ -687,19 +687,36 @@ def get_insurance_products(request):
     """
     获取保险产品列表
     支持按公司筛选：?company=公司ID
+    ✅ 已更新：包含 ProductPlan 关联方案
     """
-    from .models import InsuranceProduct
+    from .models import InsuranceProduct, ProductPlan
 
     try:
         company_id = request.GET.get('company')
 
         if company_id:
-            products = InsuranceProduct.objects.filter(company_id=company_id).select_related('company')
+            products = InsuranceProduct.objects.filter(company_id=company_id).select_related('company').prefetch_related('plans')
         else:
-            products = InsuranceProduct.objects.all().select_related('company')
+            products = InsuranceProduct.objects.all().select_related('company').prefetch_related('plans')
 
         product_list = []
         for product in products:
+            # 获取所有关联的方案
+            plans = product.plans.filter(is_active=True).order_by('sort_order', 'payment_period')
+            plans_data = []
+            for plan in plans:
+                plans_data.append({
+                    'id': plan.id,
+                    'plan_name': plan.plan_name,
+                    'payment_period': plan.payment_period,
+                    'annual_premium': str(plan.annual_premium),
+                    'total_premium': str(plan.total_premium) if plan.total_premium else None,
+                    'surrender_value_table': plan.surrender_value_table,
+                    'death_benefit_table': plan.death_benefit_table,
+                    'irr_rate': str(plan.irr_rate) if plan.irr_rate else None,
+                    'is_recommended': plan.is_recommended
+                })
+
             product_list.append({
                 'id': product.id,
                 'company': {
@@ -716,11 +733,12 @@ def get_insurance_products(request):
                 'product_category': product.product_category,
                 'is_withdrawal': product.is_withdrawal,
                 'description': product.description,
+                'plans': plans_data,  # ✅ 新增：包含方案列表
             })
 
         return Response({
             'status': 'success',
-            'results': product_list
+            'data': product_list  # 改为 'data' 以保持一致性
         })
 
     except Exception as e:

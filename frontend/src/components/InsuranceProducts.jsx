@@ -49,7 +49,7 @@ const InsuranceProducts = () => {
         ]);
 
         setCompanies(companiesRes.data.data || companiesRes.data);
-        setAllProducts(productsRes.data.results || productsRes.data);
+        setAllProducts(productsRes.data.data || productsRes.data);
       } catch (error) {
         console.error('Failed to fetch data:', error);
       } finally {

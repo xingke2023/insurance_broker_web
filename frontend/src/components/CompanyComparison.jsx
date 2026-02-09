@@ -1,8 +1,8 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, GitCompare, Loader2, CheckCircle, Printer, Download, Check, Palette, ChevronDown, Settings } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { ArrowLeft, GitCompare, Loader2, CheckCircle, Printer, Check, Palette, ChevronDown, Settings, FileSpreadsheet } from 'lucide-react';
 import { useAppNavigate } from '../hooks/useAppNavigate';
 import axios from 'axios';
-import html2canvas from 'html2canvas';
+import * as XLSX from 'xlsx';
 import CompanyIconDisplay from './CompanyIconDisplay';
 import Calculator from './Calculator';
 
@@ -46,7 +46,7 @@ function CompanyComparison() {
   const [paymentAmount, setPaymentAmount] = useState(10000);
   const [paymentYears, setPaymentYears] = useState(5); // 缴费年限
 
-  const comparisonTableRef = useRef(null); // 用于截图的ref
+  const comparisonTableRef = React.useRef(null); // 用于截图的ref
 
   // 风格主题配置
   const [currentTheme, setCurrentTheme] = useState('googleMaterial'); // classic, modern, dark, fresh, tech, luxury, googleMaterial
@@ -894,40 +894,88 @@ function CompanyComparison() {
     return Object.values(actualColumns).filter(v => v).length;
   };
 
-  const handleDownloadImage = async () => {
-    if (!comparisonTableRef.current) return;
-    try {
-      // 隐藏按钮栏
-      const buttonBar = comparisonTableRef.current.querySelector('.print\\:hidden');
-      if (buttonBar) {
-        buttonBar.style.display = 'none';
-      }
 
-      const canvas = await html2canvas(comparisonTableRef.current, {
-        scale: 2,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: currentTheme === 'luxury' ? '#18181b' : '#ffffff'
+  // 下载Excel功能 - 导出所有数据（不进行筛选）
+  const handleDownloadExcel = () => {
+    if (!comparisonData) return;
+
+    try {
+      // 收集所有年度数据（使用allYearData，包含所有未筛选的数据）
+      const allYears = new Set();
+      comparisonData.companies.forEach(company => {
+        Object.keys(company.allYearData).forEach(year => {
+          allYears.add(parseInt(year));
+        });
+      });
+      const sortedYears = Array.from(allYears).sort((a, b) => a - b);
+
+      // 构建Excel数据
+      const excelData = [];
+
+      // 添加标题行（公司信息）
+      const titleRow = ['保单年度', '年龄'];
+      comparisonData.companies.forEach(company => {
+        titleRow.push(`${company.name} - 已缴保费`);
+        titleRow.push(`${company.name} - 保证现金价值`);
+        titleRow.push(`${company.name} - 非保证现金价值`);
+        titleRow.push(`${company.name} - 总现金价值`);
+      });
+      excelData.push(titleRow);
+
+      // 添加数据行（所有年度）
+      sortedYears.forEach(year => {
+        const row = [
+          year, // 保单年度
+          customerAge + year - 1 // 年龄
+        ];
+
+        comparisonData.companies.forEach(company => {
+          const data = company.allYearData[year];
+          if (data) {
+            row.push(
+              data.premiums_paid !== undefined ? data.premiums_paid : '-',
+              data.guaranteed !== undefined ? data.guaranteed : '-',
+              data.non_guaranteed !== undefined ? data.non_guaranteed : '-',
+              data.total !== undefined ? data.total : '-'
+            );
+          } else {
+            row.push('-', '-', '-', '-');
+          }
+        });
+
+        excelData.push(row);
       });
 
-      // 恢复按钮栏显示
-      if (buttonBar) {
-        buttonBar.style.display = '';
-      }
+      // 创建工作簿
+      const wb = XLSX.utils.book_new();
+      const ws = XLSX.utils.aoa_to_sheet(excelData);
 
-      const link = document.createElement('a');
-      link.download = `保险公司对比_${new Date().toLocaleDateString('zh-CN')}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+      // 设置列宽
+      const colWidths = [
+        { wch: 12 }, // 保单年度
+        { wch: 10 }  // 年龄
+      ];
+      comparisonData.companies.forEach(() => {
+        colWidths.push({ wch: 15 }); // 已缴保费
+        colWidths.push({ wch: 18 }); // 保证现金价值
+        colWidths.push({ wch: 18 }); // 非保证现金价值
+        colWidths.push({ wch: 18 }); // 总现金价值
+      });
+      ws['!cols'] = colWidths;
+
+      // 添加工作表到工作簿
+      XLSX.utils.book_append_sheet(wb, ws, '保险公司对比');
+
+      // 生成文件名
+      const fileName = `保险公司对比_完整数据_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`;
+
+      // 下载文件
+      XLSX.writeFile(wb, fileName);
+
+      console.log('✅ Excel下载成功:', fileName);
     } catch (error) {
-      console.error('下载图片失败:', error);
-      alert('下载图片失败，请重试');
-
-      // 确保恢复按钮栏显示
-      const buttonBar = comparisonTableRef.current?.querySelector('.print\\:hidden');
-      if (buttonBar) {
-        buttonBar.style.display = '';
-      }
+      console.error('❌ 下载Excel失败:', error);
+      alert('下载Excel失败，请重试');
     }
   };
 
@@ -996,11 +1044,13 @@ function CompanyComparison() {
                     <span className="hidden sm:inline">打印</span>
                   </button>
                   <button
-                    onClick={handleDownloadImage}
-                    className="flex items-center gap-2 px-3 py-2 bg-white/30 backdrop-blur-sm rounded-xl hover:bg-white/40 transition-all text-sm font-semibold text-white whitespace-nowrap"
+                    onClick={handleDownloadExcel}
+                    className="flex items-center gap-2 px-3 py-2 bg-white/20 backdrop-blur-sm rounded-xl hover:bg-white/30 transition-all text-sm font-semibold text-white whitespace-nowrap"
+                    title="下载完整数据（包含所有年度）"
                   >
-                    <Download className="w-4 h-4" />
-                    <span className="hidden sm:inline">下载</span>
+                    <FileSpreadsheet className="w-4 h-4" />
+                    <span className="hidden sm:inline">下载Excel</span>
+                    <span className="sm:hidden">Excel</span>
                   </button>
                   <button
                     onClick={() => {
@@ -1271,69 +1321,59 @@ function CompanyComparison() {
                 </div>
 
                 {/* 列选项 */}
-                <div className="p-2.5 space-y-2">
+                <div className="p-2.5 space-y-1.5">
                   {/* 数据列分组 */}
                   <div>
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 px-1">数据列</div>
-                    <div className="space-y-1.5">
-                      <label className="flex items-center gap-2.5 p-2 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">数据列</div>
+                    <div className="grid grid-cols-2 gap-1">
+                      <label className="flex items-center gap-2 px-2 py-1.5 bg-gray-50 rounded-lg hover:bg-gray-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.guaranteed}
                           onChange={() => handleToggleColumn('guaranteed')}
-                          className="w-4 h-4 rounded text-blue-500"
+                          className="w-3.5 h-3.5 rounded text-blue-500"
                         />
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-900">保证现金价值</div>
-                        </div>
+                        <span className="text-xs font-semibold text-gray-900">保证现金价值</span>
                       </label>
 
-                      <label className="flex items-center gap-2.5 p-2 bg-orange-50 rounded-lg hover:bg-orange-100 transition-all cursor-pointer">
+                      <label className="flex items-center gap-2 px-2 py-1.5 bg-orange-50 rounded-lg hover:bg-orange-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.nonGuaranteed}
                           onChange={() => handleToggleColumn('nonGuaranteed')}
-                          className="w-4 h-4 rounded text-orange-500"
+                          className="w-3.5 h-3.5 rounded text-orange-500"
                         />
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-900">非保证现金价值</div>
-                        </div>
+                        <span className="text-xs font-semibold text-gray-900">非保证现金价值</span>
                       </label>
 
-                      <label className="flex items-center gap-2.5 p-2 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all cursor-pointer">
+                      <label className="flex items-center gap-2 px-2 py-1.5 bg-indigo-50 rounded-lg hover:bg-indigo-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.total}
                           onChange={() => handleToggleColumn('total')}
-                          className="w-4 h-4 rounded text-indigo-500"
+                          className="w-3.5 h-3.5 rounded text-indigo-500"
                         />
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-900">总价值</div>
-                        </div>
+                        <span className="text-xs font-semibold text-gray-900">总价值</span>
                       </label>
 
-                      <label className="flex items-center gap-2.5 p-2 bg-purple-50 rounded-lg hover:bg-purple-100 transition-all cursor-pointer">
+                      <label className="flex items-center gap-2 px-2 py-1.5 bg-purple-50 rounded-lg hover:bg-purple-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.simpleReturn}
                           onChange={() => handleToggleColumn('simpleReturn')}
-                          className="w-4 h-4 rounded text-purple-500"
+                          className="w-3.5 h-3.5 rounded text-purple-500"
                         />
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-900">单利</div>
-                        </div>
+                        <span className="text-xs font-semibold text-gray-900">单利</span>
                       </label>
 
-                      <label className="flex items-center gap-2.5 p-2 bg-green-50 rounded-lg hover:bg-green-100 transition-all cursor-pointer">
+                      <label className="flex items-center gap-2 px-2 py-1.5 bg-green-50 rounded-lg hover:bg-green-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.irr}
                           onChange={() => handleToggleColumn('irr')}
-                          className="w-4 h-4 rounded text-green-500"
+                          className="w-3.5 h-3.5 rounded text-green-500"
                         />
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-900">IRR(年化复利)</div>
-                        </div>
+                        <span className="text-xs font-semibold text-gray-900">IRR(年化复利)</span>
                       </label>
                     </div>
                   </div>
@@ -1343,30 +1383,26 @@ function CompanyComparison() {
 
                   {/* 其他选项分组 */}
                   <div>
-                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1.5 px-1">其他选项</div>
-                    <div className="space-y-1.5">
-                      <label className="flex items-center gap-2.5 p-2 bg-red-50 rounded-lg hover:bg-red-100 transition-all cursor-pointer">
+                    <div className="text-xs font-bold text-gray-500 uppercase tracking-wider mb-1 px-1">其他选项</div>
+                    <div className="grid grid-cols-2 gap-1">
+                      <label className="flex items-center gap-2 px-2 py-1.5 bg-red-50 rounded-lg hover:bg-red-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.breakEven}
                           onChange={() => handleToggleColumn('breakEven')}
-                          className="w-4 h-4 rounded text-red-500"
+                          className="w-3.5 h-3.5 rounded text-red-500"
                         />
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-900">回本期标记</div>
-                        </div>
+                        <span className="text-xs font-semibold text-gray-900">回本期标记</span>
                       </label>
 
-                      <label className="flex items-center gap-2.5 p-2 bg-pink-50 rounded-lg hover:bg-pink-100 transition-all cursor-pointer">
+                      <label className="flex items-center gap-2 px-2 py-1.5 bg-pink-50 rounded-lg hover:bg-pink-100 transition-all cursor-pointer">
                         <input
                           type="checkbox"
                           checked={visibleColumns.highlightBest}
                           onChange={() => handleToggleColumn('highlightBest')}
-                          className="w-4 h-4 rounded text-pink-500"
+                          className="w-3.5 h-3.5 rounded text-pink-500"
                         />
-                        <div className="flex-1">
-                          <div className="text-sm font-semibold text-gray-900">按年度最优</div>
-                        </div>
+                        <span className="text-xs font-semibold text-gray-900">按年度最优</span>
                       </label>
                     </div>
                   </div>
@@ -1417,24 +1453,12 @@ function CompanyComparison() {
                           清空
                         </button>
                       </div>
-                      <div className="mt-1.5 space-y-0.5">
-                        <div className="text-xs text-gray-600 flex items-start gap-1">
-                          <span className="text-blue-600 font-bold text-[10px]">•</span>
-                          <span className="text-[11px]"><span className="font-semibold">范围：</span>1-20</span>
-                        </div>
-                        <div className="text-xs text-gray-600 flex items-start gap-1">
-                          <span className="text-blue-600 font-bold text-[10px]">•</span>
-                          <span className="text-[11px]"><span className="font-semibold">单个：</span>1,5,10,80,100</span>
-                        </div>
-                        <div className="text-xs text-gray-600 flex items-start gap-1">
-                          <span className="text-blue-600 font-bold text-[10px]">•</span>
-                          <span className="text-[11px]"><span className="font-semibold">混合：</span>1-10,20,30-40,100</span>
-                        </div>
-                        <div className="mt-2 pt-1.5 border-t border-blue-200">
-                          <div className="text-[10px] text-gray-500">
-                            💡 修改后点击"确认"即可保存
-                          </div>
-                        </div>
+                      <div className="mt-1 text-[11px] text-gray-500 flex items-center gap-2 flex-wrap">
+                        <span><span className="font-semibold">范围:</span>1-20</span>
+                        <span className="text-gray-300">|</span>
+                        <span><span className="font-semibold">单个:</span>1,5,10,80,100</span>
+                        <span className="text-gray-300">|</span>
+                        <span><span className="font-semibold">混合:</span>1-10,20,30-40,100</span>
                       </div>
                     </div>
                   </div>
@@ -1480,6 +1504,15 @@ function CompanyComparison() {
         <span className="sm:hidden">返回</span>
       </button>
 
+      {/* 同产品对比按钮 - 右上角设置按钮左侧 */}
+      <button
+        onClick={() => onNavigate('company-comparison2')}
+        className="absolute top-3 right-20 md:top-4 md:right-24 flex items-center gap-1 px-3 py-1.5 bg-white/95 backdrop-blur-xl rounded-xl shadow-lg hover:shadow-xl transition-all text-xs md:text-sm font-semibold text-gray-900 border border-indigo-200/50 hover:scale-105 hover:border-indigo-300 z-10"
+      >
+        <GitCompare className="w-3 h-3 md:w-4 md:h-4" />
+        <span className="hidden sm:inline">同产品对比</span>
+      </button>
+
       {/* 设置按钮 - 右上角 */}
       <button
         onClick={() => onNavigate('product-comparison-settings')}
@@ -1496,7 +1529,6 @@ function CompanyComparison() {
           <div className="mb-2 md:mb-4 text-center">
             <h1 className="text-3xl md:text-4xl lg:text-5xl font-bold text-gray-900" style={{ fontFamily: "'Microsoft YaHei', '微软雅黑', sans-serif" }}>
               港險儲蓄分紅型產品收益數據統計表
-              <span className="text-xl md:text-2xl lg:text-3xl">（2025年12月）</span>
             </h1>
             <p className="text-xs md:text-sm text-gray-500 mt-2">数据最新更新日期 29/01/2026</p>
           </div>
@@ -1618,12 +1650,13 @@ function CompanyComparison() {
         </div>
 
         {/* 保险公司列表 */}
-        {loading ? (
-          <div className="flex items-center justify-center py-12 md:py-20">
-            <Loader2 className="w-12 h-12 text-purple-600 animate-spin drop-shadow-lg" />
-          </div>
-        ) : (
-          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-3 md:gap-4">
+        <div className="relative min-h-[300px]">
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center z-10 bg-white/60 backdrop-blur-sm rounded-2xl">
+              <Loader2 className="w-12 h-12 text-purple-600 animate-spin drop-shadow-lg" />
+            </div>
+          )}
+          <div className={`grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-5 gap-3 md:gap-4 transition-opacity duration-200 ${loading ? 'opacity-40 pointer-events-none' : 'opacity-100'}`}>
             {companies.map((company) => {
               // 富卫公司使用稍小的logo
               const isFWD = company.name === '富卫' || company.name === 'FWD' || company.name.includes('富卫');
@@ -1722,7 +1755,7 @@ function CompanyComparison() {
               );
             })}
           </div>
-        )}
+        </div>
 
         {/* 自定义显示年度 - 已隐藏，年度选择已移至"自定义显示项"弹窗 */}
         {false && (

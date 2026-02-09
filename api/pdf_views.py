@@ -9,6 +9,7 @@ from pypdf import PdfReader  # 备用提取方案
 import io
 import os
 import tempfile
+from .models import PlanDocument
 
 
 @api_view(['POST'])
@@ -912,6 +913,133 @@ def extract_tables_markdown(request):
         return Response({
             'status': 'error',
             'message': f'提取文本失败: {str(e)}'
+        }, status=500)
+
+
+@api_view(['POST'])
+@permission_classes([IsAuthenticated])
+def download_document_clean_pdf(request):
+    """
+    下载去除页眉页脚的文档PDF
+
+    参数:
+    - document_id: 文档ID
+
+    返回:
+    - 去除页眉页脚后的PDF文件
+    """
+    print(f'\n📄 收到下载单页PDF请求')
+    print(f'   用户: {request.user.username}')
+
+    try:
+        # 获取文档ID
+        document_id = request.data.get('document_id')
+        if not document_id:
+            return Response({
+                'status': 'error',
+                'message': '请提供文档ID'
+            }, status=400)
+
+        # 查询文档
+        try:
+            document = PlanDocument.objects.get(id=document_id)
+        except PlanDocument.DoesNotExist:
+            return Response({
+                'status': 'error',
+                'message': '文档不存在'
+            }, status=404)
+
+        # 检查文档是否有PDF文件
+        if not document.file_path:
+            return Response({
+                'status': 'error',
+                'message': '该文档没有关联的PDF文件'
+            }, status=400)
+
+        # 获取PDF文件路径
+        pdf_path = document.file_path.path
+        print(f'   文档ID: {document_id}')
+        print(f'   文件路径: {pdf_path}')
+
+        # 检查文件是否存在
+        if not os.path.exists(pdf_path):
+            return Response({
+                'status': 'error',
+                'message': 'PDF文件不存在'
+            }, status=404)
+
+        # 读取PDF文件
+        with open(pdf_path, 'rb') as f:
+            pdf_bytes = f.read()
+
+        print(f'   文件大小: {len(pdf_bytes)} bytes ({len(pdf_bytes) / 1024 / 1024:.2f} MB)')
+
+        # 使用PyMuPDF处理PDF
+        print('   打开PDF文档...')
+        pdf_document = fitz.open(stream=pdf_bytes, filetype="pdf")
+        print(f'   PDF打开成功，共 {len(pdf_document)} 页')
+
+        # 默认配置：去除页眉和页脚（通栏）
+        # 页眉高度：80px（去除顶部logo和标题）
+        # 页脚高度：60px（去除底部公司信息和页码）
+        header_height = 80
+        footer_height = 60
+
+        # 遍历每一页
+        print(f'   开始处理页面...')
+        for page_num in range(len(pdf_document)):
+            page = pdf_document[page_num]
+
+            # 获取页面尺寸
+            page_rect = page.rect
+            page_width = page_rect.width
+            page_height = page_rect.height
+
+            # 去除页眉（通栏）- 顶部白色矩形覆盖
+            header_rect = fitz.Rect(0, 0, page_width, header_height)
+            page.draw_rect(header_rect, color=(1, 1, 1), fill=(1, 1, 1))
+
+            # 去除页脚（通栏）- 底部白色矩形覆盖
+            footer_rect = fitz.Rect(0, page_height - footer_height, page_width, page_height)
+            page.draw_rect(footer_rect, color=(1, 1, 1), fill=(1, 1, 1))
+
+        print(f'   处理完成，所有 {len(pdf_document)} 页已去除页眉页脚')
+
+        # 保存到内存
+        print('   保存处理后的PDF...')
+        output_buffer = io.BytesIO()
+        pdf_document.save(
+            output_buffer,
+            garbage=4,  # 最高级别的垃圾回收
+            deflate=True,  # 使用deflate压缩
+            clean=True,  # 清理未使用的对象
+        )
+        pdf_document.close()
+        print(f'   PDF保存成功，大小: {len(output_buffer.getvalue())} bytes')
+
+        # 重置缓冲区指针
+        output_buffer.seek(0)
+
+        # 生成文件名
+        original_name = document.file_name or 'document.pdf'
+        output_filename = original_name.replace('.pdf', '_单页版.pdf')
+
+        # 返回处理后的PDF文件
+        print(f'✅ PDF处理完成，返回文件: {output_filename}')
+        response = HttpResponse(output_buffer.read(), content_type='application/pdf')
+        response['Content-Disposition'] = f'attachment; filename="{output_filename}"'
+        response['Access-Control-Expose-Headers'] = 'Content-Disposition'
+
+        return response
+
+    except Exception as e:
+        print(f'❌ 处理PDF失败: {str(e)}')
+        import traceback
+        traceback.print_exc()
+
+        return Response({
+            'status': 'error',
+            'message': f'处理PDF失败: {str(e)}'
         }, status=500)
 
 

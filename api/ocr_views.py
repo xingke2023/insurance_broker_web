@@ -220,10 +220,60 @@ def get_pending_documents(request):
 
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
+def get_daily_quota_status(request):
+    """
+    获取用户的每日限额状态
+
+    返回:
+    {
+        "status": "success",
+        "data": {
+            "used_count": 2,
+            "max_limit": 4,
+            "remaining_count": 2,
+            "can_upload": true
+        }
+    }
+    """
+    try:
+        user = request.user
+        from .models import DailyUsageQuota
+
+        # 获取或创建今天的使用记录
+        daily_quota = DailyUsageQuota.get_or_create_today(user)
+
+        return Response({
+            'status': 'success',
+            'data': {
+                'used_count': daily_quota.upload_count,
+                'max_limit': daily_quota.max_daily_limit,
+                'remaining_count': daily_quota.remaining_count(),
+                'can_upload': daily_quota.can_upload()
+            }
+        }, status=status.HTTP_200_OK)
+
+    except Exception as e:
+        logger.error(f"❌ 获取每日限额状态失败: {e}")
+        import traceback
+        logger.error(traceback.format_exc())
+        return Response({
+            'status': 'error',
+            'message': f'获取失败: {str(e)}'
+        }, status=status.HTTP_500_INTERNAL_SERVER_ERROR)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
 def get_saved_documents(request):
     """
     获取已保存的文档列表（仅返回当前用户的文档）
-    优化版本：只返回列表页需要的基本信息，不加载完整表格数据
+    支持服务端分页、搜索和筛选
+
+    查询参数:
+    - page: 页码（默认1）
+    - page_size: 每页条数（默认10）
+    - search: 搜索关键词（文件名）
+    - status: 状态筛选（all/processing/completed/failed）
     """
     try:
         # 从认证的用户获取 user_id（安全的方式）
@@ -236,27 +286,71 @@ def get_saved_documents(request):
             }, status=status.HTTP_401_UNAUTHORIZED)
 
         user_id = request.user.id
-        logger.info(f"📊 获取文档列表 - user: {request.user.username}, user_id: {user_id}")
 
-        # 只返回当前登录用户的文档（不限制数量，由前端分页）
-        # 使用 only() 优化查询，只加载需要的字段
-        documents = PlanDocument.objects.filter(user_id=user_id).only(
-            'id', 'file_name', 'file_path', 'file_size', 'status',
+        # 获取分页参数
+        page = int(request.GET.get('page', 1))
+        page_size = int(request.GET.get('page_size', 10))
+        search_term = request.GET.get('search', '').strip()
+        filter_status = request.GET.get('status', 'all').strip()
+
+        logger.info(f"📊 获取文档列表 - user: {request.user.username}, user_id: {user_id}, page: {page}, page_size: {page_size}, search: '{search_term}', status: '{filter_status}'")
+
+        # 基础查询：只返回当前登录用户的文档
+        # 使用 only() 优化查询，只加载需要的字段（包含 table1 用于产品对比检查）
+        queryset = PlanDocument.objects.filter(user_id=user_id).only(
+            'id', 'file_name', 'file_path', 'file_size', 'status', 'processing_stage',
             'insured_name', 'insured_age', 'insured_gender',
             'insurance_product', 'insurance_company',
             'sum_assured', 'annual_premium', 'payment_years', 'total_premium', 'insurance_period',
+            'table1',  # 添加 table1 字段用于产品对比检查
             'created_at', 'updated_at'
-        ).order_by('-created_at')
-        logger.info(f"📊 找到 {documents.count()} 个文档")
+        )
+
+        # 搜索过滤（文件名）
+        if search_term:
+            queryset = queryset.filter(file_name__icontains=search_term)
+
+        # 状态过滤
+        if filter_status and filter_status != 'all':
+            queryset = queryset.filter(status=filter_status)
+
+        # 排序
+        queryset = queryset.order_by('-created_at')
+
+        # 获取总数
+        total_count = queryset.count()
+        logger.info(f"📊 筛选后找到 {total_count} 个文档")
+
+        # 分页
+        start_index = (page - 1) * page_size
+        end_index = start_index + page_size
+        documents = queryset[start_index:end_index]
+
+        logger.info(f"📊 返回第 {page} 页，共 {len(documents)} 条记录")
 
         data = []
         for doc in documents:
+            # 解析 table1 数据用于前端检查（但不返回完整数据，只返回是否存在）
+            has_table1 = False
+            if doc.table1:
+                try:
+                    table1_obj = json.loads(doc.table1) if isinstance(doc.table1, str) else doc.table1
+                    # 检查是否有有效的表格数据
+                    has_table1 = (
+                        (table1_obj.get('surrender_value_table') and len(table1_obj['surrender_value_table']) > 0) or
+                        (table1_obj.get('data') and len(table1_obj['data']) > 1)
+                    )
+                except:
+                    has_table1 = False
+
             data.append({
                 'id': doc.id,
                 'file_name': doc.file_name,
                 'file_path': doc.file_path.url if doc.file_path else None,  # PDF文件下载路径
                 'file_size': doc.file_size,
                 'status': doc.status,
+                'processing_stage': doc.processing_stage,  # 添加处理阶段信息
+                'table1': doc.table1,  # 添加 table1 完整数据（用于产品对比）
 
                 # 受保人信息 - 直接使用数据库字段（列表页不需要完整解析）
                 'insured_name': doc.insured_name,
@@ -279,13 +373,21 @@ def get_saved_documents(request):
                 'updated_at': doc.updated_at.isoformat()
             })
 
+        # 计算总页数
+        total_pages = (total_count + page_size - 1) // page_size
+
         return Response({
             'status': 'success',
-            'count': len(data),
+            'count': len(data),  # 当前页记录数
+            'total_count': total_count,  # 总记录数
+            'total_pages': total_pages,  # 总页数
+            'current_page': page,  # 当前页
+            'page_size': page_size,  # 每页条数
             'data': data
         })
 
     except Exception as e:
+        logger.error(f"❌ 获取文档列表失败: {str(e)}")
         return Response({
             'status': 'error',
             'message': f'获取失败: {str(e)}'
@@ -1567,6 +1669,21 @@ def upload_pdf_async(request):
                     'membership_required': True
                 }, status=status.HTTP_403_FORBIDDEN)
 
+        # 检查每日上传限额
+        if user_obj:
+            from .models import DailyUsageQuota
+            daily_quota = DailyUsageQuota.get_or_create_today(user_obj)
+
+            if not daily_quota.can_upload():
+                logger.warning(f"⚠️ 用户 {user_obj.username} 今日上传次数已达上限: {daily_quota.upload_count}/{daily_quota.max_daily_limit}")
+                return Response({
+                    'status': 'error',
+                    'error': f'您今日的上传次数已达上限（{daily_quota.max_daily_limit}篇/天）。如需增加额度，请联系管理员。',
+                    'daily_limit_exceeded': True,
+                    'used_count': daily_quota.upload_count,
+                    'max_limit': daily_quota.max_daily_limit
+                }, status=status.HTTP_429_TOO_MANY_REQUESTS)
+
         # 创建PlanDocument记录
         plan_doc = PlanDocument()
         plan_doc.file_name = uploaded_file.name  # 保存原始文件名（显示用）
@@ -1600,6 +1717,13 @@ def upload_pdf_async(request):
         logger.info(f"📤 文件已上传: {uploaded_file.name} (ID: {plan_doc.id})")
         logger.info(f"   文件大小: {uploaded_file.size} bytes")
         logger.info(f"   保存路径: {plan_doc.file_path.path}")
+
+        # 增加每日使用次数
+        if user_obj:
+            from .models import DailyUsageQuota
+            daily_quota = DailyUsageQuota.get_or_create_today(user_obj)
+            daily_quota.increment_count()
+            logger.info(f"📊 每日使用次数已更新: {daily_quota.upload_count}/{daily_quota.max_daily_limit}")
 
         # 启动Celery异步任务（只执行新流程）
         from .tasks import extract_table_data_direct_task

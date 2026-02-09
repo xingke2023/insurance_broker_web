@@ -1,6 +1,6 @@
 import { useAuth } from '../context/AuthContext';
 import { useAppNavigate } from '../hooks/useAppNavigate';
-import { useState, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { API_BASE_URL } from '../config';
 import { isInMiniProgram, redirectToMiniProgramLogin, redirectToMiniProgramLogout } from '../utils/miniProgramUtils';
@@ -18,6 +18,7 @@ import {
   SparklesIcon,
   LightBulbIcon,
   UserGroupIcon,
+  ChevronDownIcon,
 } from '@heroicons/react/24/outline';
 
 function Dashboard() {
@@ -47,6 +48,10 @@ function Dashboard() {
   // 图片预览模态框
   const [showImagePreview, setShowImagePreview] = useState(false);
 
+  // 个人办公助手下拉菜单
+  const [showOfficeMenu, setShowOfficeMenu] = useState(false);
+  const officeMenuRef = React.useRef(null);
+
   // 模拟页面加载完成
   useEffect(() => {
     // 模拟数据加载过程
@@ -56,6 +61,22 @@ function Dashboard() {
 
     return () => clearTimeout(timer);
   }, []);
+
+  // 点击外部关闭下拉菜单
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (officeMenuRef.current && !officeMenuRef.current.contains(event.target)) {
+        setShowOfficeMenu(false);
+      }
+    };
+
+    if (showOfficeMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      return () => {
+        document.removeEventListener('mousedown', handleClickOutside);
+      };
+    }
+  }, [showOfficeMenu]);
 
   // 获取用户保存的IP形象
   useEffect(() => {
@@ -255,6 +276,17 @@ function Dashboard() {
     return false;
   };
 
+  // 个人办公助手子菜单
+  const officeAssistantMenuItems = [
+    { name: '打造个人IP形象', icon: SparklesIcon, action: () => { onNavigate('ip-image-generator'); setShowOfficeMenu(false); } },
+    { name: '宣传图制作(基于个人IP)', icon: DocumentTextIcon, action: () => { onNavigate('content-image-generator'); setShowOfficeMenu(false); } },
+    { name: '视频制作', icon: SparklesIcon, action: () => { onNavigate('video-projects'); setShowOfficeMenu(false); } },
+    { name: '个性化语音制作', icon: DevicePhoneMobileIcon, action: () => { onNavigate('text-to-speech'); setShowOfficeMenu(false); } },
+    { name: '我的图片库', icon: FolderIcon, action: () => { onNavigate('media-library'); setShowOfficeMenu(false); } },
+    { name: '公众号写作及排版工具', icon: GlobeAltIcon, action: () => { window.open('https://write.xingke888.com/editor', '_blank'); setShowOfficeMenu(false); } },
+    { name: '产品海报分析工具', icon: SparklesIcon, action: () => { onNavigate('poster-analyzer'); setShowOfficeMenu(false); } },
+  ];
+
   // 工具分类
   const toolCategories = [
     {
@@ -275,17 +307,11 @@ function Dashboard() {
     {
       category: '港险销售赋能工具',
       tools: [
-        { name: '计划书分析', icon: FolderIcon, action: () => onNavigate('plan-management'), color: 'from-blue-500 via-blue-600 to-indigo-700', show: true },
+        { name: '计划书概要与数据提取', icon: FolderIcon, action: () => onNavigate('plan-management'), color: 'from-blue-500 via-blue-600 to-indigo-700', show: true },
+        { name: '计划书AI对比工具', icon: ChartBarIcon, action: () => onNavigate('plan-comparison'), color: 'from-indigo-500 via-blue-600 to-cyan-700', show: true },
         { name: '计划书制作', icon: DocumentTextIcon, action: () => onNavigate('plan-builder'), color: 'from-purple-500 via-purple-600 to-pink-700', show: true },
-        { name: '打造个人IP形象', icon: SparklesIcon, action: () => onNavigate('ip-image-generator'), color: 'from-pink-500 via-rose-600 to-rose-700', show: true },
-        { name: '宣传图制作(基于个人IP)', icon: DocumentTextIcon, action: () => onNavigate('content-image-generator'), color: 'from-rose-500 via-red-600 to-red-700', show: true },
-        { name: '视频制作', icon: SparklesIcon, action: () => onNavigate('video-projects'), color: 'from-red-500 via-orange-600 to-orange-700', show: true },
-        { name: '个性化语音制作', icon: DevicePhoneMobileIcon, action: () => onNavigate('text-to-speech'), color: 'from-orange-500 via-amber-600 to-amber-700', show: true },
-        { name: '我的图片库', icon: FolderIcon, action: () => onNavigate('media-library'), color: 'from-emerald-500 via-green-600 to-green-700', show: true },
-        { name: '公众号写作及排版工具', icon: GlobeAltIcon, action: () => window.open('https://write.xingke888.com/editor', '_blank'), color: 'from-amber-500 via-yellow-600 to-yellow-700', show: true },
-        { name: '产品海报分析工具', icon: SparklesIcon, action: () => onNavigate('poster-analyzer'), color: 'from-green-500 via-teal-600 to-teal-700', show: true },
-        { name: 'PDF页脚擦除工具', icon: DocumentTextIcon, action: () => onNavigate('pdf-footer-remover'), color: 'from-teal-500 via-cyan-600 to-cyan-700', show: true },
-        { name: 'PDF工具箱 Pro', icon: DocumentTextIcon, action: () => onNavigate('pdf-footer-remover2'), color: 'from-purple-500 via-fuchsia-600 to-pink-700', show: true },
+        { name: '计划书擦除工具', icon: DocumentTextIcon, action: () => onNavigate('pdf-footer-remover2'), color: 'from-purple-500 via-fuchsia-600 to-pink-700', show: true },
+        { name: '个人办公助手', icon: SparklesIcon, action: () => setShowOfficeMenu(!showOfficeMenu), color: 'from-pink-500 via-rose-600 to-rose-700', show: true, isDropdown: true },
       ]
     }
   ];
@@ -611,33 +637,55 @@ function Dashboard() {
                 </h3>
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2 sm:gap-3">
                   {category.tools.filter(tool => tool.show).map((tool, toolIndex) => (
-                    <button
-                      key={toolIndex}
-                      type="button"
-                      onClick={(e) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        if (!tool.disabled) {
-                          tool.action();
-                        }
-                      }}
-                      disabled={tool.disabled}
-                      className={`group relative overflow-hidden bg-gradient-to-br ${tool.color} rounded-[14px] px-3 py-2.5 sm:px-4 sm:py-3 shadow-[0_4px_16px_rgba(0,0,0,0.12)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.2)] transition-all duration-300 flex items-center gap-2.5 sm:gap-3 text-left min-h-[60px] sm:min-h-[65px] ${
-                        tool.disabled
-                          ? 'opacity-50 cursor-not-allowed'
-                          : 'hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0 cursor-pointer'
-                      }`}
-                    >
-                      {/* 序号标签 - 左上角四分之一圆 */}
-                      <div className="absolute top-0 left-0 bg-white/20 backdrop-blur-sm rounded-br-full w-8 h-8 flex items-center justify-center z-10">
-                        <span className="text-xs font-bold text-white drop-shadow-md -translate-x-0.5 -translate-y-0.5">{previousToolsCount + toolIndex + 1}</span>
-                      </div>
-                      <div className={`absolute inset-0 bg-gradient-to-t from-black/10 to-transparent transition-opacity ${tool.disabled ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'} duration-300`}></div>
-                      <tool.icon className="relative z-10 w-7 h-7 sm:w-8 sm:h-8 text-white flex-shrink-0 transition-transform group-hover:scale-110 drop-shadow-lg" />
-                      <h3 className="relative z-10 text-xs sm:text-sm font-semibold text-white tracking-tight leading-tight drop-shadow-md">
-                        {tool.name}
-                      </h3>
-                    </button>
+                    <div key={toolIndex} className="relative" ref={tool.isDropdown ? officeMenuRef : null}>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          if (!tool.disabled) {
+                            tool.action();
+                          }
+                        }}
+                        disabled={tool.disabled}
+                        className={`group relative overflow-hidden bg-gradient-to-br ${tool.color} rounded-[14px] px-3 py-2.5 sm:px-4 sm:py-3 shadow-[0_4px_16px_rgba(0,0,0,0.12)] hover:shadow-[0_8px_24px_rgba(0,0,0,0.2)] transition-all duration-300 flex items-center gap-2.5 sm:gap-3 text-left min-h-[60px] sm:min-h-[65px] w-full ${
+                          tool.disabled
+                            ? 'opacity-50 cursor-not-allowed'
+                            : 'hover:scale-[1.02] hover:-translate-y-0.5 active:scale-[0.98] active:translate-y-0 cursor-pointer'
+                        }`}
+                      >
+                        {/* 序号标签 - 左上角四分之一圆 */}
+                        <div className="absolute top-0 left-0 bg-white/20 backdrop-blur-sm rounded-br-full w-8 h-8 flex items-center justify-center z-10">
+                          <span className="text-xs font-bold text-white drop-shadow-md -translate-x-0.5 -translate-y-0.5">{previousToolsCount + toolIndex + 1}</span>
+                        </div>
+                        <div className={`absolute inset-0 bg-gradient-to-t from-black/10 to-transparent transition-opacity ${tool.disabled ? 'opacity-0' : 'opacity-0 group-hover:opacity-100'} duration-300`}></div>
+                        <tool.icon className="relative z-10 w-7 h-7 sm:w-8 sm:h-8 text-white flex-shrink-0 transition-transform group-hover:scale-110 drop-shadow-lg" />
+                        <h3 className="relative z-10 text-xs sm:text-sm font-semibold text-white tracking-tight leading-tight drop-shadow-md flex-1">
+                          {tool.name}
+                        </h3>
+                        {tool.isDropdown && (
+                          <ChevronDownIcon className={`relative z-10 w-4 h-4 sm:w-5 sm:h-5 text-white flex-shrink-0 drop-shadow-lg transition-transform duration-200 ${showOfficeMenu ? '' : 'rotate-180'}`} />
+                        )}
+                      </button>
+
+                      {/* 上拉菜单 */}
+                      {tool.isDropdown && showOfficeMenu && (
+                        <div className="absolute z-50 bottom-full mb-2 w-64 bg-white rounded-xl shadow-[0_8px_32px_rgba(0,0,0,0.16)] border border-gray-200 overflow-hidden">
+                          <div className="py-2">
+                            {officeAssistantMenuItems.map((menuItem, idx) => (
+                              <button
+                                key={idx}
+                                onClick={menuItem.action}
+                                className="w-full px-4 py-2.5 text-left flex items-center gap-3 hover:bg-gradient-to-r hover:from-pink-50 hover:to-rose-50 transition-all group"
+                              >
+                                <menuItem.icon className="w-5 h-5 text-gray-600 group-hover:text-rose-600 transition-colors" />
+                                <span className="text-sm text-gray-700 group-hover:text-gray-900 font-medium">{menuItem.name}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
                   ))}
                 </div>
               </div>

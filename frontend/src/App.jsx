@@ -27,6 +27,7 @@ import WithdrawalCalculator from './components/WithdrawalCalculator'
 import InsuranceCompanyPage from './components/InsuranceCompanyPage'
 import ApiCallPage from './components/ApiCallPage'
 import CompanyComparison from './components/CompanyComparison'
+import CompanyComparison2 from './components/CompanyComparison2'
 import CompanyComparisonCC from './components/CompanyComparisonCC'
 import MembershipPlans from './components/MembershipPlans'
 import Settings from './components/Settings'
@@ -45,6 +46,7 @@ import InsuranceProducts from './components/InsuranceProducts'
 import InsuranceProductDetail from './components/InsuranceProductDetail'
 import InsuranceCompanies from './components/InsuranceCompanies'
 import InsuranceCompanyDetail from './components/InsuranceCompanyDetail'
+import ProductDemo from './components/ProductDemo'
 
 function App() {
   return (
@@ -55,7 +57,9 @@ function App() {
             {/* 公开页面 - 无需登录 */}
             <Route path="/" element={<HomePage />} />
             <Route path="/home" element={<HomePage />} />
+            <Route path="/product-demo" element={<ProductDemo />} />
             <Route path="/company-comparison" element={<CompanyComparison />} />
+            <Route path="/company-comparison2" element={<CompanyComparison2 />} />
             <Route path="/cc" element={<CompanyComparisonCC />} />
 
             {/* 受保护的页面 - 需要登录 */}

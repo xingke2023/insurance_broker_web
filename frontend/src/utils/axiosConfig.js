@@ -25,6 +25,10 @@ export const setupAxiosInterceptors = (onLogout) => {
       if (token) {
         config.headers['Authorization'] = `Bearer ${token}`;
       }
+      // 设置默认超时时间为30秒（如果没有指定）
+      if (!config.timeout) {
+        config.timeout = 30000;
+      }
       return config;
     },
     (error) => {
@@ -71,8 +75,11 @@ export const setupAxiosInterceptors = (onLogout) => {
 
         try {
           // Try to refresh the token
+          console.log('🔄 Token已过期，正在刷新...');
           const response = await axios.post(`${API_BASE_URL}/api/auth/token/refresh/`, {
             refresh: refreshToken
+          }, {
+            timeout: 10000 // 刷新token超时时间10秒
           });
 
           const { access } = response.data;
@@ -80,6 +87,8 @@ export const setupAxiosInterceptors = (onLogout) => {
           // Save new token
           localStorage.setItem('access_token', access);
           axios.defaults.headers.common['Authorization'] = `Bearer ${access}`;
+
+          console.log('✅ Token刷新成功');
 
           // Process queued requests
           processQueue(null, access);
@@ -90,7 +99,12 @@ export const setupAxiosInterceptors = (onLogout) => {
           return axios(originalRequest);
         } catch (refreshError) {
           // Refresh failed, logout
-          console.error('Token refresh failed, logging out', refreshError);
+          console.error('❌ Token刷新失败:', refreshError.message);
+
+          if (refreshError.code === 'ECONNABORTED' || refreshError.message.includes('timeout')) {
+            console.error('❌ Token刷新超时，网络可能存在问题');
+          }
+
           processQueue(refreshError, null);
           isRefreshing = false;
 

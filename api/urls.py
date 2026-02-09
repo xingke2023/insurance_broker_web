@@ -3,7 +3,7 @@ from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import InsurancePolicyViewSet
 from .auth_views import register, login, user_profile, wechat_login, generate_miniprogram_scheme, wechat_web_auth, wechat_update_profile, wechat_upload_avatar, get_page_permissions
-from .ocr_views import save_ocr_result, get_saved_documents, get_pending_documents, get_document_detail, analyze_document_table, analyze_basic_info, delete_documents, chat_with_document, extract_summary, get_processing_status, ocr_webhook, create_pending_document, retry_failed_document, upload_pdf_async, get_table_detail, reextract_tablecontent, reanalyze_tables, re_ocr_document, reextract_table1
+from .ocr_views import save_ocr_result, get_saved_documents, get_pending_documents, get_document_detail, analyze_document_table, analyze_basic_info, delete_documents, chat_with_document, extract_summary, get_processing_status, ocr_webhook, create_pending_document, retry_failed_document, upload_pdf_async, get_table_detail, reextract_tablecontent, reanalyze_tables, re_ocr_document, reextract_table1, get_daily_quota_status
 from .payment_views_v3 import create_payment_order_v3, payment_notify_v3, create_jsapi_payment, get_membership_plans
 from .plan_views import get_membership_status
 from .content_editor_views import process_user_request, update_tablesummary, update_surrender_value_table, update_wellness_table, update_plan_summary
@@ -18,7 +18,7 @@ from .video_generator_views import (
 )
 from .tts_views import get_voices, synthesize_speech, download_audio
 from .personal_voice_views import get_personal_voices, create_personal_voice, synthesize_with_personal_voice, delete_personal_voice
-from .pdf_views import remove_pdf_footer, crop_pdf_footer, extract_pdf_tables, extract_pdf_tables_plumber, extract_pdf_text, extract_tables_markdown
+from .pdf_views import remove_pdf_footer, crop_pdf_footer, extract_pdf_tables, extract_pdf_tables_plumber, extract_pdf_text, extract_tables_markdown, download_document_clean_pdf
 from .poster_views import analyze_poster_view, get_analysis_templates
 from .axa_benefit_views import analyze_axa_benefit, calculate_withdrawal
 from .insurance_company_views import (
@@ -68,6 +68,10 @@ from .scraper_views import (
     find_company_pages,
     scraper_status
 )
+from .playwright_scraper_views import (
+    scrape_product_playwright,
+    get_product_promotions
+)
 # 计划书提取功能已删除
 # from .plan_views import (
 #     upload_plan_document, get_plan_documents, get_plan_document,
@@ -113,6 +117,7 @@ urlpatterns = [
     path('ocr/upload-async/', upload_pdf_async, name='upload-pdf-async'),  # 异步上传PDF进行OCR
     path('ocr/save/', save_ocr_result, name='save-ocr-result'),
     path('ocr/webhook/', ocr_webhook, name='ocr-webhook'),  # OCR完成回调接口
+    path('ocr/daily-quota/', get_daily_quota_status, name='get-daily-quota-status'),  # 获取每日限额状态
     path('ocr/documents/create-pending/', create_pending_document, name='create-pending-document'),  # 创建待处理文档
     path('ocr/documents/pending/', get_pending_documents, name='get-pending-documents'),  # 获取未完成文档
     path('ocr/documents/', get_saved_documents, name='get-saved-documents'),
@@ -195,6 +200,7 @@ urlpatterns = [
     path('pdf/extract-tables-plumber', extract_pdf_tables_plumber, name='extract-pdf-tables-plumber'),
     path('pdf/extract-text', extract_pdf_text, name='extract-pdf-text'),
     path('pdf/extract-tables-markdown', extract_tables_markdown, name='extract-tables-markdown'),
+    path('pdf/download-clean-document', download_document_clean_pdf, name='download-clean-document'),
 
     # 海报分析API
     path('poster/analyze', analyze_poster_view, name='analyze-poster'),
@@ -262,6 +268,10 @@ urlpatterns = [
     path('scraper/company-products/', scrape_company_products, name='scrape-company-products'),
     path('scraper/find-pages/', find_company_pages, name='find-company-pages'),
     path('scraper/status/', scraper_status, name='scraper-status'),
+
+    # Playwright产品爬虫API（支持外部调用）
+    path('playwright-scraper/scrape-product/', scrape_product_playwright, name='scrape-product-playwright'),
+    path('playwright-scraper/products/<int:product_id>/promotions/', get_product_promotions, name='get-product-promotions'),
 
     # 计划书提取功能路由已删除
     # path('insurance-companies/', get_insurance_companies, name='insurance-companies'),

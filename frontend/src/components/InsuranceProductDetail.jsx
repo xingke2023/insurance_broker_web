@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import axios from 'axios';
 import { API_URL } from '../config';
@@ -49,7 +49,7 @@ const InsuranceProductDetail = () => {
   const [error, setError] = useState(null);
   const [selectedPlanId, setSelectedPlanId] = useState(null);
   const [activeTab, setActiveTab] = useState('overview');
-  const iframeRef = useRef(null);
+  const iframeRef = React.useRef(null);
 
   useEffect(() => {
     const fetchProduct = async () => {

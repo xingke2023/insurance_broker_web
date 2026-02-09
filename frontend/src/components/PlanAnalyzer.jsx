@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Upload, Trash2, FileText, Image as ImageIcon, Loader2, Save, CheckCircle, List, X, Clock } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useAppNavigate } from '../hooks/useAppNavigate';
@@ -39,9 +39,9 @@ function PlanAnalyzer() {
   const [loadingTaskId, setLoadingTaskId] = useState(null); // 记录正在加载的任务ID
   const [autoSaveTriggered, setAutoSaveTriggered] = useState(false); // 记录是否已触发自动保存
   const [isViewingExistingDoc, setIsViewingExistingDoc] = useState(false); // 标记是否正在查看已存在的文档
-  const fetchingDirsRef = useRef(new Set()); // 追踪正在获取的目录，防止重复请求
-  const fetchingFilesRef = useRef(new Set()); // 追踪正在获取的文件，防止重复请求
-  const eventSourcesRef = useRef(new Map()); // 存储所有活跃的SSE连接
+  const fetchingDirsRef = React.useRef(new Set()); // 追踪正在获取的目录，防止重复请求
+  const fetchingFilesRef = React.useRef(new Set()); // 追踪正在获取的文件，防止重复请求
+  const eventSourcesRef = React.useRef(new Map()); // 存储所有活跃的SSE连接
 
   // 快速检测PDF是否包含表格元素
   const detectTableInPDF = async (file) => {

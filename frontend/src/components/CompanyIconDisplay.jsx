@@ -29,7 +29,7 @@ const CompanyIconDisplay = ({ iconUrl, companyName, imgSizeClasses, textClasses 
   // - iconUrl is provided but doesn't look like a URL (e.g., it's a single character emoji)
   return (
     <div className={`${imgSizeClasses} ${fallbackBgClasses} flex items-center justify-center ${textClasses} font-bold shadow-lg`}>
-      {companyName.charAt(0)}
+      {companyName ? companyName.charAt(0) : '?'}
     </div>
   );
 };

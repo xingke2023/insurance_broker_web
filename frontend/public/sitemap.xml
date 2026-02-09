@@ -1,121 +1,105 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
-        xmlns:xhtml="http://www.w3.org/1999/xhtml"
-        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">
+        xmlns:xhtml="http://www.w3.org/1999/xhtml">
 
-  <!-- 首页 -->
+  <!-- 首頁 -->
   <url>
-    <loc>https://harry.xingke888.com/</loc>
-    <lastmod>2025-01-06</lastmod>
+    <loc>https://www.hongkong-insurance.com/</loc>
+    <lastmod>2025-02-05</lastmod>
     <changefreq>daily</changefreq>
     <priority>1.0</priority>
-    <xhtml:link rel="alternate" hreflang="zh-TW" href="https://harry.xingke888.com/" />
-    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://harry.xingke888.com/" />
-    <xhtml:link rel="alternate" hreflang="en" href="https://harry.xingke888.com/" />
+    <xhtml:link rel="alternate" hreflang="zh-TW" href="https://www.hongkong-insurance.com/" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://www.hongkong-insurance.com/" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.hongkong-insurance.com/" />
   </url>
 
-  <!-- 登录页面 -->
+  <!-- 香港保險公司列表 -->
   <url>
-    <loc>https://harry.xingke888.com/login</loc>
-    <lastmod>2025-01-06</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-
-  <!-- 注册页面 -->
-  <url>
-    <loc>https://harry.xingke888.com/register</loc>
-    <lastmod>2025-01-06</lastmod>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
-
-  <!-- Dashboard -->
-  <url>
-    <loc>https://harry.xingke888.com/dashboard</loc>
-    <lastmod>2025-01-06</lastmod>
+    <loc>https://www.hongkong-insurance.com/insurance-companies</loc>
+    <lastmod>2025-02-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="zh-TW" href="https://www.hongkong-insurance.com/insurance-companies" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://www.hongkong-insurance.com/insurance-companies" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.hongkong-insurance.com/insurance-companies" />
   </url>
 
-  <!-- 计划书管理 -->
+  <!-- 香港保險產品目錄 -->
   <url>
-    <loc>https://harry.xingke888.com/plan-management</loc>
-    <lastmod>2025-01-06</lastmod>
+    <loc>https://www.hongkong-insurance.com/insurance-products</loc>
+    <lastmod>2025-02-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="zh-TW" href="https://www.hongkong-insurance.com/insurance-products" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://www.hongkong-insurance.com/insurance-products" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.hongkong-insurance.com/insurance-products" />
   </url>
 
-  <!-- 计划书分析 -->
+  <!-- 港險產品對比 -->
   <url>
-    <loc>https://harry.xingke888.com/plan-analyzer-2</loc>
-    <lastmod>2025-01-06</lastmod>
+    <loc>https://www.hongkong-insurance.com/company-comparison</loc>
+    <lastmod>2025-02-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.9</priority>
+    <xhtml:link rel="alternate" hreflang="zh-TW" href="https://www.hongkong-insurance.com/company-comparison" />
+    <xhtml:link rel="alternate" hreflang="zh-CN" href="https://www.hongkong-insurance.com/company-comparison" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.hongkong-insurance.com/company-comparison" />
   </url>
 
-  <!-- 计划书制作 -->
+  <!-- 港險顧問 -->
   <url>
-    <loc>https://harry.xingke888.com/plan-builder</loc>
-    <lastmod>2025-01-06</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.9</priority>
-  </url>
-
-  <!-- 个人IP形象生成器 -->
-  <url>
-    <loc>https://harry.xingke888.com/ip-image-generator</loc>
-    <lastmod>2025-01-06</lastmod>
+    <loc>https://www.hongkong-insurance.com/customer-cases</loc>
+    <lastmod>2025-02-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
 
-  <!-- 内容图像生成器 -->
+  <!-- 港險案例彙編 -->
   <url>
-    <loc>https://harry.xingke888.com/content-image-generator</loc>
-    <lastmod>2025-01-06</lastmod>
+    <loc>https://www.hongkong-insurance.com/customer-case-library</loc>
+    <lastmod>2025-02-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
 
-  <!-- 视频项目 -->
+  <!-- 計劃書分析 -->
   <url>
-    <loc>https://harry.xingke888.com/video-projects</loc>
-    <lastmod>2025-01-06</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-
-  <!-- 文字转语音 -->
-  <url>
-    <loc>https://harry.xingke888.com/text-to-speech</loc>
-    <lastmod>2025-01-06</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-
-  <!-- 媒体库 -->
-  <url>
-    <loc>https://harry.xingke888.com/media-library</loc>
-    <lastmod>2025-01-06</lastmod>
+    <loc>https://www.hongkong-insurance.com/plan-management</loc>
+    <lastmod>2025-02-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
 
-  <!-- 海报分析器 -->
+  <!-- 計劃書AI對比工具 -->
   <url>
-    <loc>https://harry.xingke888.com/poster-analyzer</loc>
-    <lastmod>2025-01-06</lastmod>
-    <changefreq>weekly</changefreq>
-    <priority>0.8</priority>
-  </url>
-
-  <!-- PDF页脚移除工具 -->
-  <url>
-    <loc>https://harry.xingke888.com/pdf-footer-remover</loc>
-    <lastmod>2025-01-06</lastmod>
+    <loc>https://www.hongkong-insurance.com/plan-comparison</loc>
+    <lastmod>2025-02-05</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
+  </url>
+
+  <!-- 計劃書製作 -->
+  <url>
+    <loc>https://www.hongkong-insurance.com/plan-builder</loc>
+    <lastmod>2025-02-05</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.6</priority>
+  </url>
+
+  <!-- 登錄 -->
+  <url>
+    <loc>https://www.hongkong-insurance.com/login</loc>
+    <lastmod>2025-02-05</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
+  </url>
+
+  <!-- 註冊 -->
+  <url>
+    <loc>https://www.hongkong-insurance.com/register</loc>
+    <lastmod>2025-02-05</lastmod>
+    <changefreq>monthly</changefreq>
+    <priority>0.5</priority>
   </url>
 
 </urlset>

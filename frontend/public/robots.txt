@@ -1,32 +1,50 @@
-# MacroData港險從業者辦公助手 - Robots.txt
-# Welcome all search engine crawlers
+# robots.txt for www.hongkong-insurance.com
+# 香港保險公司與香港保險產品專題網站
+# 服務地區：香港、中國大陸
 
 User-agent: *
 Allow: /
 
-# Sitemap location
-Sitemap: https://harry.xingke888.com/sitemap.xml
+# 允許所有搜索引擎索引主要頁面
+Allow: /insurance-companies
+Allow: /insurance-products
+Allow: /company-comparison
+Allow: /customer-cases
+Allow: /customer-case-library
+Allow: /plan-management
+Allow: /plan-comparison
+Allow: /plan-builder
 
-# Crawl delay (optional, be polite to servers)
+# 禁止索引用戶個人頁面
+Disallow: /dashboard
+Disallow: /profile
+Disallow: /settings
+
+# 禁止索引API端點
+Disallow: /api/
+
+# Sitemap 位置
+Sitemap: https://www.hongkong-insurance.com/sitemap.xml
+
+# 爬蟲延遲（秒）
 Crawl-delay: 1
 
-# Allow all major search engines
+# Google 搜索引擎
 User-agent: Googlebot
 Allow: /
 
+# Bing 搜索引擎
 User-agent: Bingbot
 Allow: /
 
+# 百度搜索引擎
 User-agent: Baiduspider
 Allow: /
 
-User-agent: YandexBot
+# 搜狗搜索引擎
+User-agent: Sogou web spider
 Allow: /
 
-User-agent: Sogou
+# 360搜索引擎
+User-agent: 360Spider
 Allow: /
-
-# Disallow sensitive paths (if any in the future)
-# User-agent: *
-# Disallow: /admin/
-# Disallow: /api/auth/

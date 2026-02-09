@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useAppNavigate } from '../hooks/useAppNavigate';
 import axios from 'axios';
@@ -20,9 +20,9 @@ function PlanComparisonDirect() {
   const [userInput, setUserInput] = useState('');
   const [isSending, setIsSending] = useState(false);
 
-  const messagesEndRef = useRef(null);
-  const chatContainerRef = useRef(null);
-  const streamingTextRef = useRef('');
+  const messagesEndRef = React.useRef(null);
+  const chatContainerRef = React.useRef(null);
+  const streamingTextRef = React.useRef('');
 
   // 清理markdown代码块标记
   const cleanMarkdownCodeBlocks = (text) => {

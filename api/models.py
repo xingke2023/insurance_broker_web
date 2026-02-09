@@ -500,6 +500,76 @@ class UserQuota(models.Model):
         return self.available_quota >= amount
 
 
+class DailyUsageQuota(models.Model):
+    """每日使用限额模型 - 记录用户每天的文档上传次数"""
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='daily_usage',
+        verbose_name='用户'
+    )
+    date = models.DateField(
+        verbose_name='日期',
+        db_index=True
+    )
+    upload_count = models.IntegerField(
+        default=0,
+        verbose_name='当日上传次数'
+    )
+    max_daily_limit = models.IntegerField(
+        default=4,
+        verbose_name='每日最大限制'
+    )
+    created_at = models.DateTimeField(
+        auto_now_add=True,
+        verbose_name='创建时间'
+    )
+    updated_at = models.DateTimeField(
+        auto_now=True,
+        verbose_name='更新时间'
+    )
+
+    class Meta:
+        db_table = 'daily_usage_quotas'
+        verbose_name = '每日使用限额'
+        verbose_name_plural = '每日使用限额'
+        unique_together = [['user', 'date']]  # 每个用户每天只有一条记录
+        indexes = [
+            models.Index(fields=['user', 'date']),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} - {self.date} - {self.upload_count}/{self.max_daily_limit}"
+
+    def can_upload(self):
+        """检查是否还可以上传"""
+        return self.upload_count < self.max_daily_limit
+
+    def increment_count(self):
+        """增加上传次数"""
+        if self.can_upload():
+            self.upload_count += 1
+            self.save()
+            return True
+        return False
+
+    def remaining_count(self):
+        """剩余可用次数"""
+        return max(0, self.max_daily_limit - self.upload_count)
+
+    @classmethod
+    def get_or_create_today(cls, user):
+        """获取或创建今天的使用记录"""
+        from django.utils import timezone
+        today = timezone.now().date()
+        quota, created = cls.objects.get_or_create(
+            user=user,
+            date=today,
+            defaults={'upload_count': 0, 'max_daily_limit': 4}
+        )
+        return quota
+
+
 class MembershipPlan(models.Model):
     """会员套餐模型 - 存储套餐信息和权益"""
     plan_id = models.CharField(

@@ -93,7 +93,7 @@ def get_companies_standard_comparison(request):
             company__in=companies,
             is_active=True
         ).select_related('company').only(
-            'id', 'product_name', 'company_id', 'sort_order'
+            'id', 'product_name', 'company_id', 'sort_order', 'product_details'
         )
 
         # 如果用户指定了产品ID，则只返回这些产品
@@ -161,7 +161,8 @@ def get_companies_standard_comparison(request):
                         'product_name': product.product_name,
                         'payment_period': plan.payment_period,  # ✅ 从方案表获取
                         'annual_premium': float(plan.annual_premium),  # ✅ 从方案表获取
-                        'standard_data': standard_data
+                        'standard_data': standard_data,
+                        'product_details': product.product_details or {},  # 产品详细信息
                     })
 
             # 判断公司是否有数据

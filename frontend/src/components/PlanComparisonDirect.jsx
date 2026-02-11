@@ -145,6 +145,19 @@ function PlanComparisonDirect() {
       });
 
       if (!response.ok) {
+        if (response.status === 403) {
+          const errorData = await response.json().catch(() => ({}));
+          const detail = errorData.detail || errorData;
+          if (detail?.error === 'membership_expired' || detail?.error === 'no_membership') {
+            const msg = detail.message || '此功能仅限付费会员使用';
+            if (window.confirm(`${msg}\n\n是否前往会员计划页面？`)) {
+              onNavigate('membership-plans');
+            }
+            setComparing(false);
+            setMessages([]);
+            return;
+          }
+        }
         throw new Error('请求失败');
       }
 
@@ -263,6 +276,18 @@ function PlanComparisonDirect() {
       });
 
       if (!response.ok) {
+        if (response.status === 403) {
+          const errorData = await response.json().catch(() => ({}));
+          const detail = errorData.detail || errorData;
+          if (detail?.error === 'membership_expired' || detail?.error === 'no_membership') {
+            const msg = detail.message || '此功能仅限付费会员使用';
+            if (window.confirm(`${msg}\n\n是否前往会员计划页面？`)) {
+              onNavigate('membership-plans');
+            }
+            setIsSending(false);
+            return;
+          }
+        }
         throw new Error('请求失败');
       }
 
@@ -489,8 +514,8 @@ function PlanComparisonDirect() {
               </div>
             </div>
 
-            {/* 对比按钮 */}
-            <div className="mt-1.5 sm:mt-3 flex justify-center">
+            {/* 对比按钮 - 暂时隐藏 */}
+            {/* <div className="mt-1.5 sm:mt-3 flex justify-center">
               <button
                 onClick={handleCompare}
                 disabled={!pdf1 || !pdf2 || comparing}
@@ -499,7 +524,7 @@ function PlanComparisonDirect() {
                 <SparklesIcon className="w-4 h-4" />
                 <span>开始AI对比分析</span>
               </button>
-            </div>
+            </div> */}
 
             {/* 使用提示 */}
             <div className="mt-1.5 sm:mt-3 bg-gradient-to-br from-blue-50 to-indigo-50 rounded-md p-2 sm:p-2.5 border border-blue-200">

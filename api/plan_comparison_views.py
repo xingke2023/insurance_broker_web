@@ -9,6 +9,7 @@ from django.http import HttpResponse, StreamingHttpResponse
 from .models import PlanComparison
 from .serializers import PlanComparisonSerializer
 from .gemini_service import call_gemini_with_fallback, get_next_api_key
+from .permissions import IsMemberActive
 from google import genai
 from google.genai import types
 import io
@@ -17,7 +18,7 @@ logger = logging.getLogger(__name__)
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsMemberActive])
 def compare_plans_gemini_stream(request):
     """
     使用Gemini直接分析2-3份PDF计划书并生成对比报告（流式输出）
@@ -407,7 +408,7 @@ def delete_comparison(request, comparison_id):
 
 
 @api_view(['POST'])
-@permission_classes([IsAuthenticated])
+@permission_classes([IsAuthenticated, IsMemberActive])
 def chat_with_comparison(request, comparison_id):
     """
     基于对比结果进行对话（流式输出）

@@ -1122,6 +1122,12 @@ class InsuranceProductAdmin(admin.ModelAdmin):
                          '• product_research_report: 产品研究报告，深度分析内容',
             'classes': ('collapse',)
         }),
+        ('产品详细信息', {
+            'fields': ('product_details',),
+            'description': '<strong>产品属性信息（JSON键值对）</strong><br>'
+                         '例如：{"投保年龄": "0-75岁", "货币": "9种", "可转换币种": "美元/港币/人民币", "分红基制": "英式分红", "公司成立年份": "1919年"}<br>'
+                         '支持的字段：投保年龄、货币、可转换币种、可转换时间、受保人要求、新造保费折扣、最低投保额要求、更改受保人、第二持有人、保单贷款、保费锁定、分红基制、分红期限/分红检讨周期、身故赔偿选项、赔偿方式、公司成立年份、代表信贷评级',
+        }),
         ('产品特性', {
             'fields': ('is_withdrawal',),
             'description': '是否包含提取功能'

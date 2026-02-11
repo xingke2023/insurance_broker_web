@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ArrowLeft, GitCompare, Loader2, CheckCircle, Printer, Check, Palette, ChevronDown, Settings, FileSpreadsheet } from 'lucide-react';
 import { useAppNavigate } from '../hooks/useAppNavigate';
 import axios from 'axios';
@@ -10,6 +10,8 @@ function CompanyComparison() {
   const onNavigate = useAppNavigate();
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [switchingYears, setSwitchingYears] = useState(false);
+  const fetchIdRef = useRef(0);
   const [selectedIds, setSelectedIds] = useState([]);
   const [showComparison, setShowComparison] = useState(false);
   const [comparisonData, setComparisonData] = useState(null);
@@ -316,6 +318,7 @@ function CompanyComparison() {
   }, [visibleColumns.breakEven]);
 
   const fetchCompanies = async (paymentPeriod = paymentYears) => {
+    const currentFetchId = ++fetchIdRef.current;
     setLoading(true);
     try {
       // 获取用户的产品设置
@@ -340,6 +343,10 @@ function CompanyComparison() {
           selected_product_ids: selectedProductIds.length > 0 ? selectedProductIds.join(',') : undefined
         }
       });
+
+      // 旧请求返回时丢弃，只处理最新请求的结果
+      if (currentFetchId !== fetchIdRef.current) return;
+
       const data = response.data;
 
       if (data.status === 'success') {
@@ -350,15 +357,21 @@ function CompanyComparison() {
         }
       }
     } catch (error) {
+      if (currentFetchId !== fetchIdRef.current) return;
       console.error('获取保险公司列表失败:', error);
       alert('获取保险公司列表失败');
     } finally {
-      setLoading(false);
+      if (currentFetchId === fetchIdRef.current) {
+        setLoading(false);
+        setSwitchingYears(false);
+      }
     }
   };
 
   // 处理缴费年限变化
   const handlePaymentYearsChange = (years) => {
+    if (switchingYears) return; // 加载中直接忽略
+    setSwitchingYears(true);
     setPaymentYears(years);
     // 如果缴费年限为1年或2年，默认设置年缴保费为100000
     if (years === 1 || years === 2) {
@@ -556,7 +569,8 @@ function CompanyComparison() {
             name: company.name,
             icon: company.icon,
             flagship_product: product.product_name,
-            standard_data: product.standard_data
+            standard_data: product.standard_data,
+            product_details: product.product_details || {}
           });
         }
       });
@@ -689,6 +703,7 @@ function CompanyComparison() {
         name: company.name,
         icon: company.icon,
         flagship_product: company.flagship_product,
+        product_details: company.product_details || {},
         yearData,
         allYearData
       };
@@ -1284,6 +1299,66 @@ function CompanyComparison() {
                     );
                   })}
                 </tbody>
+                {/* 产品详细信息（价值表下方） */}
+                {(() => {
+                  const allKeys = new Set();
+                  comparisonData.companies.forEach(company => {
+                    if (company.product_details && typeof company.product_details === 'object') {
+                      Object.keys(company.product_details).forEach(key => allKeys.add(key));
+                    }
+                  });
+                  const detailKeys = Array.from(allKeys);
+                  if (detailKeys.length === 0) return null;
+
+                  const keyOrder = ['投保年龄', '货币', '可转换币种', '可转换时间', '受保人要求', '新造保费折扣', '最低投保额要求', '更改受保人', '第二持有人', '保单贷款', '保费锁定', '分红基制', '分红期限/分红检讨周期', '身故赔偿选项', '赔偿方式', '公司成立年份', '代表信贷评级'];
+                  const sortedKeys = detailKeys.sort((a, b) => {
+                    const ia = keyOrder.indexOf(a);
+                    const ib = keyOrder.indexOf(b);
+                    return (ia === -1 ? 999 : ia) - (ib === -1 ? 999 : ib);
+                  });
+
+                  return (
+                    <tfoot>
+                      {/* 分隔标题行 */}
+                      <tr className={`border-t-2 ${currentThemeConfig.borderColor}`}>
+                        <td colSpan={3 + comparisonData.companies.length * getVisibleColumnCount()} className={`px-3 py-2 text-center font-bold ${isCompactMode ? 'text-xs' : 'text-sm'} ${currentTheme === 'luxury' ? 'bg-gradient-to-r from-zinc-800 to-zinc-700 text-amber-300' : 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white'}`}>
+                          产品信息对比
+                        </td>
+                      </tr>
+                      {/* 公司·产品名称行 */}
+                      <tr className={`border-b-2 ${currentThemeConfig.borderColor} ${currentTheme === 'luxury' ? 'bg-zinc-700/60' : 'bg-indigo-50/80'}`}>
+                        <td colSpan={3} className={`${isCompactMode ? 'px-1.5 py-1.5' : 'px-3 py-2'} ${isCompactMode ? 'text-[10px]' : 'text-xs'} font-bold ${currentTheme === 'luxury' ? 'text-amber-200' : 'text-gray-700'} whitespace-nowrap sticky left-0 ${currentTheme === 'luxury' ? 'bg-zinc-700/60' : 'bg-indigo-50/80'} z-10 border-r-2 ${currentThemeConfig.borderColor}`}>
+                          产品名称
+                        </td>
+                        {comparisonData.companies.map((company, pIndex) => (
+                          <td key={`${company.id}-name`} colSpan={getVisibleColumnCount()} className={`${isCompactMode ? 'px-1 py-1.5' : 'px-2 py-2'} text-center ${pIndex < comparisonData.companies.length - 1 ? `border-r-2 ${currentThemeConfig.borderColor}` : ''}`}>
+                            <div className={`${isCompactMode ? 'text-[10px]' : 'text-xs'} font-bold ${currentTheme === 'luxury' ? 'text-amber-300' : 'text-indigo-700'}`}>{company.name}</div>
+                            <div className={`${isCompactMode ? 'text-[9px]' : 'text-[11px]'} font-medium ${currentTheme === 'luxury' ? 'text-gray-300' : 'text-blue-600'} mt-0.5`}>{company.flagship_product}</div>
+                          </td>
+                        ))}
+                      </tr>
+                      {sortedKeys.map((key, keyIndex) => {
+                        const rowBg = keyIndex % 2 === 0
+                          ? (currentTheme === 'luxury' ? 'bg-zinc-800/40' : 'bg-blue-50/40')
+                          : (currentTheme === 'luxury' ? 'bg-zinc-800/20' : 'bg-white');
+                        return (
+                          <tr key={`detail-${keyIndex}`} className={`border-b ${currentThemeConfig.borderColor} ${rowBg}`}>
+                            <td colSpan={3} className={`${isCompactMode ? 'px-1.5 py-1' : 'px-3 py-1.5'} ${isCompactMode ? 'text-[10px]' : 'text-xs'} font-bold ${currentTheme === 'luxury' ? 'text-amber-200' : 'text-gray-700'} whitespace-nowrap sticky left-0 ${rowBg} z-10 border-r-2 ${currentThemeConfig.borderColor}`}>
+                              {key}
+                            </td>
+                            {comparisonData.companies.map((company, pIndex) => (
+                              <td key={`${company.id}-d-${keyIndex}`} colSpan={getVisibleColumnCount()} className={`${isCompactMode ? 'px-1 py-1' : 'px-2 py-1.5'} text-center ${isCompactMode ? 'text-[10px]' : 'text-xs'} ${currentTheme === 'luxury' ? 'text-gray-300' : 'text-gray-600'} ${pIndex < comparisonData.companies.length - 1 ? `border-r-2 ${currentThemeConfig.borderColor}` : ''}`}>
+                                <div className={`${isCompactMode ? 'max-w-[100px]' : 'max-w-[180px]'} mx-auto leading-relaxed break-words`} title={company.product_details?.[key] || '-'}>
+                                  {company.product_details?.[key] || '-'}
+                                </div>
+                              </td>
+                            ))}
+                          </tr>
+                        );
+                      })}
+                    </tfoot>
+                  );
+                })()}
               </table>
             </div>
           </div>
@@ -1612,36 +1687,28 @@ function CompanyComparison() {
                 <div className="flex items-center gap-2 md:gap-3">
                   <label className="text-gray-900 font-semibold text-sm md:text-base">缴费年限：</label>
                   <div className="flex items-center gap-2 md:gap-4">
-                    <label className={`flex items-center gap-1.5 cursor-pointer px-2 md:px-4 py-1.5 md:py-2 rounded-xl transition-all text-gray-900 ${paymentYears === 1 ? 'bg-blue-100 ring-2 ring-blue-400' : 'bg-white/50 hover:bg-blue-50/50'}`}>
-                      <input
-                        type="radio"
-                        value="1"
-                        checked={paymentYears === 1}
-                        onChange={(e) => handlePaymentYearsChange(Number(e.target.value))}
-                        className="w-4 h-4 text-blue-500"
-                      />
-                      <span className="font-medium">1年</span>
-                    </label>
-                    <label className={`flex items-center gap-1.5 cursor-pointer px-2 md:px-4 py-1.5 md:py-2 rounded-xl transition-all text-gray-900 ${paymentYears === 2 ? 'bg-blue-100 ring-2 ring-blue-400' : 'bg-white/50 hover:bg-blue-50/50'}`}>
-                      <input
-                        type="radio"
-                        value="2"
-                        checked={paymentYears === 2}
-                        onChange={(e) => handlePaymentYearsChange(Number(e.target.value))}
-                        className="w-4 h-4 text-blue-500"
-                      />
-                      <span className="font-medium">2年</span>
-                    </label>
-                    <label className={`flex items-center gap-1.5 cursor-pointer px-2 md:px-4 py-1.5 md:py-2 rounded-xl transition-all text-gray-900 ${paymentYears === 5 ? 'bg-blue-100 ring-2 ring-blue-400' : 'bg-white/50 hover:bg-blue-50/50'}`}>
-                      <input
-                        type="radio"
-                        value="5"
-                        checked={paymentYears === 5}
-                        onChange={(e) => handlePaymentYearsChange(Number(e.target.value))}
-                        className="w-4 h-4 text-blue-500"
-                      />
-                      <span className="font-medium">5年</span>
-                    </label>
+                    {[1, 2, 5].map((year) => (
+                      <label
+                        key={year}
+                        className={`flex items-center gap-1.5 px-2 md:px-4 py-1.5 md:py-2 rounded-xl transition-all text-gray-900 ${
+                          switchingYears && paymentYears !== year
+                            ? 'pointer-events-none opacity-50'
+                            : paymentYears === year
+                              ? 'cursor-pointer bg-blue-100 ring-2 ring-blue-400'
+                              : 'cursor-pointer bg-white/50 hover:bg-blue-50/50'
+                        }`}
+                      >
+                        <input
+                          type="radio"
+                          value={year}
+                          checked={paymentYears === year}
+                          disabled={switchingYears && paymentYears !== year}
+                          onChange={(e) => handlePaymentYearsChange(Number(e.target.value))}
+                          className="w-4 h-4 text-blue-500"
+                        />
+                        <span className="font-medium">{year}年</span>
+                      </label>
+                    ))}
                   </div>
                 </div>
               </div>

@@ -47,6 +47,8 @@ import InsuranceProductDetail from './components/InsuranceProductDetail'
 import InsuranceCompanies from './components/InsuranceCompanies'
 import InsuranceCompanyDetail from './components/InsuranceCompanyDetail'
 import ProductDemo from './components/ProductDemo'
+import AdvisorService from './components/AdvisorService'
+import InsuranceClass from './components/InsuranceClass'
 
 function App() {
   return (
@@ -57,6 +59,8 @@ function App() {
             {/* 公开页面 - 无需登录 */}
             <Route path="/" element={<HomePage />} />
             <Route path="/home" element={<HomePage />} />
+            <Route path="/advisor-service" element={<AdvisorService />} />
+            <Route path="/insurance-class" element={<InsuranceClass />} />
             <Route path="/product-demo" element={<ProductDemo />} />
             <Route path="/company-comparison" element={<CompanyComparison />} />
             <Route path="/company-comparison2" element={<CompanyComparison2 />} />

@@ -65,8 +65,8 @@ const resources = {
       "cta.login": "立即登录",
 
       // Footer
-      "footer.title": "保险工具平台",
-      "footer.desc": "AI驱动的专业保险工具",
+      "footer.title": "香港保險 一站式數據分析及保險服務平台",
+      "footer.desc": "是香港领先的保险数据分析平台",
       "footer.products": "产品",
       "footer.planTool": "计划书助手",
       "footer.writingTool": "文案工具",
@@ -227,8 +227,8 @@ const resources = {
       "cta.login": "立即登錄",
 
       // Footer
-      "footer.title": "保險工具平台",
-      "footer.desc": "AI驅動的專業保險工具",
+      "footer.title": "香港保險 一站式數據分析及保險服務平台",
+      "footer.desc": "是香港領先的保險數據分析平台",
       "footer.products": "產品",
       "footer.planTool": "計劃書助手",
       "footer.writingTool": "文案工具",
@@ -389,8 +389,8 @@ const resources = {
       "cta.login": "Login Now",
 
       // Footer
-      "footer.title": "Insurance Tool Platform",
-      "footer.desc": "AI-Driven Professional Insurance Tools",
+      "footer.title": "HK Insurance Data Analysis & Service Platform",
+      "footer.desc": "A leading insurance data analysis platform in Hong Kong",
       "footer.products": "Products",
       "footer.planTool": "Plan Assistant",
       "footer.writingTool": "Content Tools",

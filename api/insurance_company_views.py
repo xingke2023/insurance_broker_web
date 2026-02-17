@@ -10,6 +10,7 @@ from .models import InsuranceCompany, InsuranceCompanyRequest
 
 
 @api_view(['GET'])
+@authentication_classes([])
 @permission_classes([AllowAny])
 def get_insurance_companies(request):
     """

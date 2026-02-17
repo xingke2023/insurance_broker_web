@@ -18,6 +18,7 @@ import {
   Calendar,
   Eye
 } from 'lucide-react';
+import NavBar from './NavBar';
 
 const InsuranceCompanyDetail = () => {
   const navigate = useNavigate();
@@ -47,7 +48,7 @@ const InsuranceCompanyDetail = () => {
         console.log('正在获取公司产品...');
         const productsResponse = await axios.get(`${API_URL}/insurance-products/?company=${id}`);
         console.log('产品列表响应:', productsResponse.data);
-        setProducts(productsResponse.data.results || productsResponse.data);
+        setProducts(productsResponse.data.data || productsResponse.data.results || []);
 
         // 获取公司新闻
         try {
@@ -138,23 +139,7 @@ const InsuranceCompanyDetail = () => {
       <div className="absolute top-[20%] right-[10%] w-[20%] h-[20%] bg-fuchsia-400/5 rounded-full blur-[80px] pointer-events-none"></div>
 
       {/* 顶部导航 */}
-      <nav className="sticky top-0 z-50 bg-white/80 backdrop-blur-xl border-b border-slate-200/60">
-        <div className="max-w-7xl mx-auto px-4 h-16 flex items-center justify-between">
-          <button
-            onClick={() => navigate('/insurance-products')}
-            className="flex items-center gap-2 text-slate-600 hover:text-slate-900 transition-colors font-medium"
-          >
-            <ArrowLeft className="w-5 h-5" />
-            <span>返回产品库</span>
-          </button>
-          
-          <div className="flex items-center gap-3">
-             <button className="p-2.5 bg-slate-100 rounded-xl text-slate-600 hover:bg-slate-200 transition-colors">
-               <Globe className="w-5 h-5" />
-             </button>
-          </div>
-        </div>
-      </nav>
+      <NavBar theme="dark" activePage="insurance-companies" />
 
       {/* 公司 Hero */}
       <header className={`bg-gradient-to-br ${company.color_gradient || 'from-slate-800 to-slate-900'} pt-16 pb-32 text-white relative overflow-hidden`}>

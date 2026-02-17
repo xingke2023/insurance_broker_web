@@ -1,5 +1,26 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { ArrowLeft, GitCompare, Loader2, CheckCircle, Printer, Check, Palette, ChevronDown, Settings, FileSpreadsheet } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
+import { useAuth } from '../context/AuthContext';
+import Login from './Login';
+import Register from './Register';
+import { 
+  ArrowLeft, 
+  GitCompare, 
+  Loader2, 
+  CheckCircle, 
+  Printer, 
+  Check, 
+  Palette, 
+  ChevronDown, 
+  Settings, 
+  FileSpreadsheet,
+  BarChart3,
+  Sun,
+  Moon,
+  Globe,
+  ChevronRight
+} from 'lucide-react';
 import { useAppNavigate } from '../hooks/useAppNavigate';
 import axios from 'axios';
 import * as XLSX from 'xlsx';
@@ -8,8 +29,17 @@ import Calculator from './Calculator';
 
 function CompanyComparison() {
   const onNavigate = useAppNavigate();
+  const navigate = useNavigate();
+  const { t, i18n } = useTranslation();
+  const { user, isAuthenticated } = useAuth();
+  const [showLogin, setShowLogin] = useState(false);
+  const [showRegister, setShowRegister] = useState(false);
   const [companies, setCompanies] = useState([]);
   const [loading, setLoading] = useState(true);
+
+  const handleLanguageChange = (lang) => {
+    i18n.changeLanguage(lang);
+  };
   const [switchingYears, setSwitchingYears] = useState(false);
   const fetchIdRef = useRef(0);
   const [selectedIds, setSelectedIds] = useState([]);
@@ -1033,8 +1063,92 @@ function CompanyComparison() {
     const isCompactMode = companyCount >= 3 || isMobileScreen;
 
     return (
-      <div className={`min-h-screen bg-gradient-to-br ${currentThemeConfig.pageGradient} p-2 md:p-4 transition-colors duration-500`}>
-        <div className="max-w-[99%] mx-auto">
+      <div className={`min-h-screen bg-gradient-to-br ${currentThemeConfig.pageGradient} transition-colors duration-500 relative`}>
+        {/* Header - Hidden on print */}
+        <header className={`fixed w-full top-0 z-[100] backdrop-blur-xl border-b transition-all duration-500 shadow-lg bg-slate-900/90 border-white/10 shadow-black/30 print:hidden`}>
+          <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-12">
+            <div className="flex items-center justify-between h-24">
+                          {/* Logo and Title */}
+                          <div className="flex items-center gap-5 cursor-pointer group" onClick={() => onNavigate('home')}>
+                            <div className="w-14 h-14 bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/20 group-hover:scale-105 transition-transform duration-300">
+                              <BarChart3 className="w-8 h-8 text-white" />
+                            </div>
+                            <div className="hidden sm:block">
+                              <h1 className="text-3xl font-extrabold text-white tracking-tighter leading-none">MacroData</h1>
+                              <p className="text-[11px] text-blue-400/80 font-bold tracking-[0.2em] uppercase mt-1.5">Insurance Intelligence</p>
+                            </div>
+                          </div>
+              
+                          {/* Navigation Links */}
+                          <nav className="hidden lg:flex items-center gap-12">
+                            <button onClick={() => onNavigate('home')} className="relative text-[15px] font-bold text-slate-300 hover:text-white transition-colors group py-2">
+                              首页
+                              <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></span>
+                            </button>
+                            <button onClick={() => onNavigate('insurance-products')} className="relative text-[15px] font-bold text-slate-300 hover:text-white transition-colors group py-2">
+                              保险产品
+                              <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></span>
+                            </button>
+                            <button onClick={() => onNavigate('insurance-companies')} className="relative text-[15px] font-bold text-slate-300 hover:text-white transition-colors group py-2">
+                              保险公司
+                              <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></span>
+                            </button>
+                            <button onClick={() => onNavigate('/#advisor-service')} className="relative text-[15px] font-bold text-slate-300 hover:text-white transition-colors group py-2">
+                              关于MacroData
+                              <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></span>
+                            </button>
+                          </nav>
+              {/* Right Side: Language + Auth */}
+              <div className="flex items-center gap-6">
+                {/* Language Selector */}
+                <div className="relative group">
+                  <select
+                    value={i18n.language}
+                    onChange={(e) => handleLanguageChange(e.target.value)}
+                    className="appearance-none bg-white/5 border border-white/10 text-slate-300 text-sm font-bold rounded-xl px-4 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500/50 hover:bg-white/10 transition-all cursor-pointer"
+                  >
+                    <option value="zh-TW" className="bg-slate-900">繁中</option>
+                    <option value="zh-CN" className="bg-slate-900">简中</option>
+                    <option value="en" className="bg-slate-900">EN</option>
+                  </select>
+                  <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                    <ChevronRight className="w-4 h-4 rotate-90" />
+                  </div>
+                </div>
+
+                {/* Auth Buttons */}
+                {isAuthenticated ? (
+                  <div className="flex items-center gap-5">
+                    <span className="text-sm text-slate-400 hidden xl:inline font-bold uppercase tracking-wider">Hi, {user?.full_name}</span>
+                    <button
+                      onClick={() => onNavigate('dashboard')}
+                      className="px-6 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all text-sm font-extrabold shadow-lg shadow-blue-900/40 hover:shadow-blue-600/40 hover:-translate-y-0.5"
+                    >
+                      {t('dashboard')}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex items-center gap-4">
+                    <button
+                      onClick={() => setShowLogin(true)}
+                      className="text-slate-300 hover:text-white transition-colors text-sm font-bold px-3 py-2"
+                    >
+                      {t('login')}
+                    </button>
+                    <button
+                      onClick={() => setShowRegister(true)}
+                      className="px-6 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all text-sm font-extrabold shadow-lg shadow-blue-900/40 hover:shadow-blue-600/40 hover:-translate-y-0.5"
+                    >
+                      {t('register')}
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-[99%] mx-auto pt-28 md:pt-32 pb-4">
           {/* 对比表格 */}
           <div ref={comparisonTableRef} className={`${currentThemeConfig.cardBg} backdrop-blur-sm rounded-3xl shadow-2xl overflow-hidden border ${currentThemeConfig.borderColor}`}>
             {/* 标题栏 */}
@@ -1568,36 +1682,111 @@ function CompanyComparison() {
 
   // 列表视图
   return (
-    <div className={`min-h-screen bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100 px-3 md:px-4 pt-4 md:pt-6 pb-4 md:pb-6 transition-colors duration-500 relative`}>
-      {/* 返回首页按钮 - 左上角 */}
-      <button
-        onClick={() => onNavigate('home')}
-        className="absolute top-3 left-3 md:top-4 md:left-4 flex items-center gap-1 px-3 py-1.5 bg-white/95 backdrop-blur-xl rounded-xl shadow-lg hover:shadow-xl transition-all text-xs md:text-sm font-semibold text-gray-900 border border-indigo-200/50 hover:scale-105 hover:border-indigo-300 z-10"
-      >
-        <ArrowLeft className="w-3 h-3 md:w-4 md:h-4" />
-        <span className="hidden sm:inline">返回首页</span>
-        <span className="sm:hidden">返回</span>
-      </button>
+    <div className={`min-h-screen relative overflow-hidden transition-colors duration-500 bg-gradient-to-br from-blue-100 via-indigo-100 to-purple-100`}>
+      {/* Header */}
+      <header className={`fixed w-full top-0 z-50 backdrop-blur-xl border-b transition-all duration-500 shadow-lg bg-slate-900/90 border-white/10 shadow-black/30`}>
+        <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-12">
+          <div className="flex items-center justify-between h-24">
+            {/* Logo and Title */}
+            <div className="flex items-center gap-5 cursor-pointer group" onClick={() => onNavigate('home')}>
+              <div className="w-14 h-14 bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-400 rounded-2xl flex items-center justify-center shadow-xl shadow-blue-500/20 group-hover:scale-105 transition-transform duration-300">
+                <BarChart3 className="w-8 h-8 text-white" />
+              </div>
+              <div className="hidden sm:block">
+                <h1 className="text-3xl font-extrabold text-white tracking-tighter leading-none">MacroData</h1>
+                <p className="text-[11px] text-blue-400/80 font-bold tracking-[0.2em] uppercase mt-1.5">Insurance Intelligence</p>
+              </div>
+            </div>
 
-      {/* 同产品对比按钮 - 右上角设置按钮左侧 */}
-      <button
-        onClick={() => onNavigate('company-comparison2')}
-        className="absolute top-3 right-20 md:top-4 md:right-24 flex items-center gap-1 px-3 py-1.5 bg-white/95 backdrop-blur-xl rounded-xl shadow-lg hover:shadow-xl transition-all text-xs md:text-sm font-semibold text-gray-900 border border-indigo-200/50 hover:scale-105 hover:border-indigo-300 z-10"
-      >
-        <GitCompare className="w-3 h-3 md:w-4 md:h-4" />
-        <span className="hidden sm:inline">同产品对比</span>
-      </button>
+            {/* Navigation Links */}
+            <nav className="hidden lg:flex items-center gap-12">
+              <button onClick={() => onNavigate('home')} className="relative text-[15px] font-bold text-slate-300 hover:text-white transition-colors group py-2">
+                首页
+                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></span>
+              </button>
+              <button onClick={() => onNavigate('insurance-products')} className="relative text-[15px] font-bold text-slate-300 hover:text-white transition-colors group py-2">
+                保险产品
+                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></span>
+              </button>
+              <button onClick={() => onNavigate('insurance-companies')} className="relative text-[15px] font-bold text-slate-300 hover:text-white transition-colors group py-2">
+                保险公司
+                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></span>
+              </button>
+              <button onClick={() => onNavigate('/#advisor-service')} className="relative text-[15px] font-bold text-slate-300 hover:text-white transition-colors group py-2">
+                关于MacroData
+                <span className="absolute bottom-0 left-0 w-full h-0.5 bg-blue-500 scale-x-0 group-hover:scale-x-100 transition-transform origin-left"></span>
+              </button>
+            </nav>
 
-      {/* 设置按钮 - 右上角 */}
-      <button
-        onClick={() => onNavigate('product-comparison-settings')}
-        className="absolute top-3 right-3 md:top-4 md:right-4 flex items-center gap-1 px-3 py-1.5 bg-white/95 backdrop-blur-xl rounded-xl shadow-lg hover:shadow-xl transition-all text-xs md:text-sm font-semibold text-gray-900 border border-indigo-200/50 hover:scale-105 hover:border-indigo-300 z-10"
-      >
-        <Settings className="w-3 h-3 md:w-4 md:h-4" />
-        <span className="hidden sm:inline">设置</span>
-      </button>
+            {/* Right Side: Language + Auth */}
+            <div className="flex items-center gap-6">
+              {/* Language Selector */}
+              <div className="relative group">
+                <select
+                  value={i18n.language}
+                  onChange={(e) => handleLanguageChange(e.target.value)}
+                  className="appearance-none bg-white/5 border border-white/10 text-slate-300 text-sm font-bold rounded-xl px-4 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500/50 hover:bg-white/10 transition-all cursor-pointer"
+                >
+                  <option value="zh-TW" className="bg-slate-900">繁中</option>
+                  <option value="zh-CN" className="bg-slate-900">简中</option>
+                  <option value="en" className="bg-slate-900">EN</option>
+                </select>
+                <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
+                  <ChevronRight className="w-4 h-4 rotate-90" />
+                </div>
+              </div>
 
-      <div className="max-w-[98%] mx-auto">
+              {/* Auth Buttons */}
+              {isAuthenticated ? (
+                <div className="flex items-center gap-5">
+                  <span className="text-sm text-slate-400 hidden xl:inline font-bold uppercase tracking-wider">Hi, {user?.full_name}</span>
+                  <button
+                    onClick={() => onNavigate('dashboard')}
+                    className="px-6 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all text-sm font-extrabold shadow-lg shadow-blue-900/40 hover:shadow-blue-600/40 hover:-translate-y-0.5"
+                  >
+                    {t('dashboard')}
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-center gap-4">
+                  <button
+                    onClick={() => setShowLogin(true)}
+                    className="text-slate-300 hover:text-white transition-colors text-sm font-bold px-3 py-2"
+                  >
+                    {t('login')}
+                  </button>
+                  <button
+                    onClick={() => setShowRegister(true)}
+                    className="px-6 py-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-500 transition-all text-sm font-extrabold shadow-lg shadow-blue-900/40 hover:shadow-blue-600/40 hover:-translate-y-0.5"
+                  >
+                    {t('register')}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <div className="max-w-[98%] mx-auto pt-32 pb-12 relative z-10">
+        {/* 同产品对比按钮 - 右上角设置按钮左侧 */}
+        <button
+          onClick={() => onNavigate('company-comparison2')}
+          className="absolute top-32 right-20 md:right-24 flex items-center gap-1 px-3 py-1.5 bg-white/95 backdrop-blur-xl rounded-xl shadow-lg hover:shadow-xl transition-all text-xs md:text-sm font-semibold text-gray-900 border border-indigo-200/50 hover:scale-105 hover:border-indigo-300 z-10"
+        >
+          <GitCompare className="w-3 h-3 md:w-4 md:h-4" />
+          <span className="hidden sm:inline">同产品对比</span>
+        </button>
+
+        {/* 设置按钮 - 右上角 */}
+        <button
+          onClick={() => onNavigate('product-comparison-settings')}
+          className="absolute top-32 right-3 md:right-4 flex items-center gap-1 px-3 py-1.5 bg-white/95 backdrop-blur-xl rounded-xl shadow-lg hover:shadow-xl transition-all text-xs md:text-sm font-semibold text-gray-900 border border-indigo-200/50 hover:scale-105 hover:border-indigo-300 z-10"
+        >
+          <Settings className="w-3 h-3 md:w-4 md:h-4" />
+          <span className="hidden sm:inline">设置</span>
+        </button>
+
         {/* 头部 */}
         <div className="mb-3 md:mb-5 pt-12 md:pt-0">
           {/* 标题 */}
@@ -1608,19 +1797,6 @@ function CompanyComparison() {
             <p className="text-xs md:text-sm text-gray-500 mt-2">数据最新更新日期 29/01/2026</p>
           </div>
 
-          {/* 提示文字与对比按钮 */}
-          <div className="mb-2 md:mb-3 flex items-center justify-between gap-4">
-            <h2 className="text-lg md:text-xl lg:text-2xl font-bold text-indigo-900 drop-shadow-md" style={{ fontFamily: "'Microsoft YaHei', '微软雅黑', sans-serif" }}>点击选择对比的公司</h2>
-
-            {/* 对比按钮 */}
-            <button
-              onClick={handleCompareCompanies}
-              className="flex items-center gap-2 md:gap-3 px-4 md:px-8 py-2 md:py-4 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white rounded-2xl shadow-[0_8px_30px_rgba(99,102,241,0.5)] hover:shadow-[0_12px_40px_rgba(168,85,247,0.6)] transition-all text-base md:text-lg font-bold hover:scale-105 hover:brightness-110"
-            >
-              <GitCompare className="w-5 h-5 md:w-7 md:h-7" />
-              <span>开始对比 {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}</span>
-            </button>
-          </div>
 
           {/* 客户演示信息 */}
           <div className="mb-2 md:mb-4 bg-white/95 backdrop-blur-xl rounded-3xl shadow-[0_12px_40px_rgba(0,0,0,0.15),0_4px_12px_rgba(0,0,0,0.1)] p-2 md:p-4 border-2 border-indigo-200/50">
@@ -1686,11 +1862,11 @@ function CompanyComparison() {
                 {/* 缴费年限 */}
                 <div className="flex items-center gap-2 md:gap-3">
                   <label className="text-gray-900 font-semibold text-sm md:text-base">缴费年限：</label>
-                  <div className="flex items-center gap-2 md:gap-4">
+                  <div className="flex items-center gap-1 md:gap-2">
                     {[1, 2, 5].map((year) => (
                       <label
                         key={year}
-                        className={`flex items-center gap-1.5 px-2 md:px-4 py-1.5 md:py-2 rounded-xl transition-all text-gray-900 ${
+                        className={`flex items-center gap-1 px-1.5 md:px-3 py-1 md:py-1.5 rounded-lg transition-all text-gray-900 ${
                           switchingYears && paymentYears !== year
                             ? 'pointer-events-none opacity-50'
                             : paymentYears === year
@@ -1711,6 +1887,15 @@ function CompanyComparison() {
                     ))}
                   </div>
                 </div>
+
+                {/* 开始对比按钮 */}
+                <button
+                  onClick={handleCompareCompanies}
+                  className="flex items-center gap-2 md:gap-3 px-4 md:px-8 py-1.5 md:py-2.5 bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-600 text-white rounded-2xl shadow-[0_8px_30px_rgba(99,102,241,0.5)] hover:shadow-[0_12px_40px_rgba(168,85,247,0.6)] transition-all text-sm md:text-base font-bold hover:scale-105 hover:brightness-110"
+                >
+                  <GitCompare className="w-4 h-4 md:w-5 md:h-5" />
+                  <span>开始对比 {selectedIds.length > 0 ? `(${selectedIds.length})` : ''}</span>
+                </button>
               </div>
             </div>
           </div>
@@ -2057,6 +2242,28 @@ function CompanyComparison() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Login Modal */}
+      {showLogin && (
+        <Login
+          onClose={() => setShowLogin(false)}
+          onSwitchToRegister={() => {
+            setShowLogin(false);
+            setShowRegister(true);
+          }}
+        />
+      )}
+
+      {/* Register Modal */}
+      {showRegister && (
+        <Register
+          onClose={() => setShowRegister(false)}
+          onSwitchToLogin={() => {
+            setShowRegister(false);
+            setShowLogin(true);
+          }}
+        />
       )}
     </div>
   );

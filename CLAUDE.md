@@ -27,6 +27,14 @@
   - 添加调试指南和常见问题排查流程
 - **分页优化**：文档列表每页显示 10 条记录（原 50 条）
 
+## scrape_tools/ 爬取工具目录
+
+| 文件 | 说明 |
+|------|------|
+| `auto_expand_cases.py` | 使用 Gemini AI 批量生成保险客户案例，内含 150+ 话题种子，自动生成案例写入 `CustomerCase` 表 |
+| `scrape_product_with_playwright.py` | Playwright + Gemini 产品爬虫，从保险产品页面抓取 PDF/视频资料，保存到 `product_promotions` 表 |
+| `web_analyzer.py` | 通用网页智能分析工具（Playwright + Gemini），支持 DOM 提取和 Gemini 智能分析两种模式 |
+
 ## 项目概述
 
 这是一个**保险计划书智能分析系统**（Insurance Plan Analyzer），使用全栈技术构建的现代化Web应用。主要用于自动化处理和分析保险计划书文档。

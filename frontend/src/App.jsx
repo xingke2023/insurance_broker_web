@@ -49,6 +49,10 @@ import InsuranceCompanyDetail from './components/InsuranceCompanyDetail'
 import ProductDemo from './components/ProductDemo'
 import AdvisorService from './components/AdvisorService'
 import InsuranceClass from './components/InsuranceClass'
+import AIHub from './components/AIHub'
+import AIOffice from './components/AIOffice'
+import AIMedia from './components/AIMedia'
+import PlanGenerationSystem from './components/PlanGenerationSystem'
 
 function App() {
   return (
@@ -59,6 +63,10 @@ function App() {
             {/* 公开页面 - 无需登录 */}
             <Route path="/" element={<HomePage />} />
             <Route path="/home" element={<HomePage />} />
+            <Route path="/ai-hub" element={<AIHub />} />
+            <Route path="/ai-office" element={<AIOffice />} />
+            <Route path="/ai-media" element={<AIMedia />} />
+            <Route path="/plan-generation" element={<PlanGenerationSystem />} />
             <Route path="/advisor-service" element={<AdvisorService />} />
             <Route path="/insurance-class" element={<InsuranceClass />} />
             <Route path="/product-demo" element={<ProductDemo />} />

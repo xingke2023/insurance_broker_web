@@ -26,6 +26,7 @@ import {
   ChevronRight,
   Shield,
   Star,
+  Rocket,
 } from 'lucide-react';
 
 function HomePage() {
@@ -87,6 +88,7 @@ function HomePage() {
     {
       category: 'AI 数字化办公赋能',
       tools: [
+        { name: 'AI 赋能中心', icon: Rocket, action: () => onNavigate('ai-hub'), color: 'from-blue-600 via-purple-700 to-indigo-800' },
         { name: '数据自动提取', icon: Folder, action: () => isAuthenticated ? onNavigate('plan-management') : setShowLogin(true), color: 'from-slate-600 via-slate-700 to-slate-800' },
         { name: 'AI 智能计划对比', icon: BarChart3, action: () => isAuthenticated ? onNavigate('plan-comparison') : setShowLogin(true), color: 'from-blue-600 via-indigo-700 to-purple-800' },
         { name: '计划书智能生成', icon: FileText, action: () => isAuthenticated ? onNavigate('plan-builder') : setShowLogin(true), color: 'from-blue-500 via-blue-600 to-indigo-700' },

@@ -2,6 +2,35 @@
 
 ## 最近更新
 
+### 2026年2月24日 - 声音复刻页面（字节跳动 MegaTTS）
+
+**页面路径**：`/voice-clone`（Dashboard → 个人办公助手 → 声音复刻）
+
+**功能模块**：
+1. **上传训练音色**：上传音频（wav/mp3/m4a等，≤10MB），选择模型和语种，提交到字节跳动 MegaTTS API 训练
+2. **查询训练状态**：查询指定 Speaker ID 的训练状态，优先使用 AKSK 接口（支持全模型），训练完成后显示试听链接
+3. **试用复刻音色合成**：用训练好的 Speaker ID 合成任意文本，使用 `cluster=volcano_icl`，可播放/下载
+4. **我的音色列表**：通过 AKSK 签名查询账号下所有已购买音色，支持一键填入 Speaker ID
+
+**关键配置（.env）**：
+```
+BYTEDANCE_APPID=your-bytedance-appid
+BYTEDANCE_TOKEN=your-bytedance-token       # Bearer Token，用于上传训练
+BYTEDANCE_ACCESS_KEY=your-access-key
+BYTEDANCE_SECRET_KEY=your-secret-key  # 原始Base64字符串，不需解码
+```
+
+**重要技术细节**：
+- `Resource-Id`：`seed-icl-1.0`（ICL 1.0）/ `seed-icl-2.0`（ICL 2.0），upload 接口必须与 model_type 匹配
+- 合成接口：`cluster` 必须用 `volcano_icl`（不是普通 TTS 的 `volcano_tts`）
+- AKSK 签名：Secret Key 直接用原始 Base64 字符串，**不解码**
+- 状态查询优先使用 AKSK 的 `BatchListMegaTTSTrainStatus` 接口（兼容所有模型）
+
+**相关文件**：
+- `api/voice_clone_views.py` - 后端：上传/状态查询/合成/音色列表
+- `api/urls.py` - 路由：`/api/voice-clone/config|upload|status|synthesize|speakers/`
+- `frontend/src/components/VoiceClone.jsx` - 前端组件
+
 ### 2026年2月5日 - 文档详情页下载单页PDF功能
 - **功能**：在文档详情页（`/document/{id}`）添加"下载单页PDF"按钮
 - **实现**：

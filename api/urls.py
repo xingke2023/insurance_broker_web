@@ -72,6 +72,8 @@ from .playwright_scraper_views import (
     scrape_product_playwright,
     get_product_promotions
 )
+from .voice_clone_views import upload_voice_clone, get_voice_clone_status, get_voice_clone_config, synthesize_with_voice_clone, list_voice_clone_speakers
+from .digital_human_views import get_config as dh_get_config, upload_media as dh_upload_media, check_subject, submit_video, get_video_status
 # 计划书提取功能已删除
 # from .plan_views import (
 #     upload_plan_document, get_plan_documents, get_plan_document,
@@ -272,6 +274,20 @@ urlpatterns = [
     # Playwright产品爬虫API（支持外部调用）
     path('playwright-scraper/scrape-product/', scrape_product_playwright, name='scrape-product-playwright'),
     path('playwright-scraper/products/<int:product_id>/promotions/', get_product_promotions, name='get-product-promotions'),
+
+    # 声音复刻API (ByteDance MegaTTS)
+    path('voice-clone/config/', get_voice_clone_config, name='voice-clone-config'),
+    path('voice-clone/upload/', upload_voice_clone, name='voice-clone-upload'),
+    path('voice-clone/status/', get_voice_clone_status, name='voice-clone-status'),
+    path('voice-clone/synthesize/', synthesize_with_voice_clone, name='voice-clone-synthesize'),
+    path('voice-clone/speakers/', list_voice_clone_speakers, name='voice-clone-speakers'),
+
+    # 数字人API (ByteDance OmniHuman)
+    path('digital-human/config/', dh_get_config, name='digital-human-config'),
+    path('digital-human/upload-media/', dh_upload_media, name='digital-human-upload-media'),
+    path('digital-human/check-subject/', check_subject, name='digital-human-check-subject'),
+    path('digital-human/submit-video/', submit_video, name='digital-human-submit-video'),
+    path('digital-human/video-status/', get_video_status, name='digital-human-video-status'),
 
     # 计划书提取功能路由已删除
     # path('insurance-companies/', get_insurance_companies, name='insurance-companies'),

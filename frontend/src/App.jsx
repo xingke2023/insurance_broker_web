@@ -53,6 +53,8 @@ import AIHub from './components/AIHub'
 import AIOffice from './components/AIOffice'
 import AIMedia from './components/AIMedia'
 import PlanGenerationSystem from './components/PlanGenerationSystem'
+import VoiceClone from './components/VoiceClone'
+import DigitalHuman from './components/DigitalHuman'
 
 function App() {
   return (
@@ -148,6 +150,16 @@ function App() {
             <Route path="/text-to-speech" element={
               <ProtectedRoute>
                 <TextToSpeech />
+              </ProtectedRoute>
+            } />
+            <Route path="/voice-clone" element={
+              <ProtectedRoute>
+                <VoiceClone />
+              </ProtectedRoute>
+            } />
+            <Route path="/digital-human" element={
+              <ProtectedRoute>
+                <DigitalHuman />
               </ProtectedRoute>
             } />
             <Route path="/pdf-footer-remover" element={

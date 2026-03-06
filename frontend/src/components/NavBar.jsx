@@ -37,6 +37,7 @@ function NavBar({ activePage = null, onThemeToggle = null }) {
   const currentPage = activePage || (() => {
     const path = location.pathname;
     if (path === '/') return 'home';
+    if (path.startsWith('/company-comparison')) return 'company-comparison';
     if (path.startsWith('/ai-hub') || path.startsWith('/ai-office') || path.startsWith('/ai-media') || path.startsWith('/plan-generation')) return 'ai-hub';
     if (path.startsWith('/insurance-products')) return 'insurance-products';
     if (path.startsWith('/insurance-companies')) return 'insurance-companies';
@@ -47,7 +48,7 @@ function NavBar({ activePage = null, onThemeToggle = null }) {
 
   const navLinks = [
     { key: 'home', label: '首页', action: () => navigate('/') },
-    { key: 'ai-hub', label: 'AI 賦能', action: () => navigate('/ai-hub') },
+    { key: 'company-comparison', label: '產品對比', action: () => navigate('/company-comparison') },
     { key: 'insurance-products', label: '港險產品', action: () => navigate('/insurance-products') },
     { key: 'insurance-class', label: '港險課堂', action: () => navigate('/insurance-class') },
     { key: 'advisor-service', label: '顧問服務', action: () => navigate('/advisor-service') },

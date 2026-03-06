@@ -282,6 +282,8 @@ function Dashboard() {
     { name: '宣传图制作(基于个人IP)', icon: DocumentTextIcon, action: () => { onNavigate('content-image-generator'); setShowOfficeMenu(false); } },
     { name: '视频制作', icon: SparklesIcon, action: () => { onNavigate('video-projects'); setShowOfficeMenu(false); } },
     { name: '个性化语音制作', icon: DevicePhoneMobileIcon, action: () => { onNavigate('text-to-speech'); setShowOfficeMenu(false); } },
+    { name: '声音复刻', icon: SparklesIcon, action: () => { onNavigate('voice-clone'); setShowOfficeMenu(false); } },
+    { name: '数字人(快速模式)', icon: SparklesIcon, action: () => { onNavigate('digital-human'); setShowOfficeMenu(false); } },
     { name: '我的图片库', icon: FolderIcon, action: () => { onNavigate('media-library'); setShowOfficeMenu(false); } },
     { name: '公众号写作及排版工具', icon: GlobeAltIcon, action: () => { window.open('https://write.xingke888.com/editor', '_blank'); setShowOfficeMenu(false); } },
     { name: '产品海报分析工具', icon: SparklesIcon, action: () => { onNavigate('poster-analyzer'); setShowOfficeMenu(false); } },

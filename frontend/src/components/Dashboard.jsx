@@ -283,6 +283,7 @@ function Dashboard() {
     { name: '视频制作', icon: SparklesIcon, action: () => { onNavigate('video-projects'); setShowOfficeMenu(false); } },
     { name: '个性化语音制作', icon: DevicePhoneMobileIcon, action: () => { onNavigate('text-to-speech'); setShowOfficeMenu(false); } },
     { name: '声音复刻', icon: SparklesIcon, action: () => { onNavigate('voice-clone'); setShowOfficeMenu(false); } },
+    { name: '声音复刻2', icon: SparklesIcon, action: () => { window.open('https://test1.fidelityai.cn/tts/', '_blank'); setShowOfficeMenu(false); } },
     { name: '数字人(快速模式)', icon: SparklesIcon, action: () => { onNavigate('digital-human'); setShowOfficeMenu(false); } },
     { name: '我的图片库', icon: FolderIcon, action: () => { onNavigate('media-library'); setShowOfficeMenu(false); } },
     { name: '公众号写作及排版工具', icon: GlobeAltIcon, action: () => { window.open('https://write.xingke888.com/editor', '_blank'); setShowOfficeMenu(false); } },
@@ -309,6 +310,7 @@ function Dashboard() {
     {
       category: '港险销售赋能工具',
       tools: [
+        { name: '港险营销话术', icon: LightBulbIcon, action: () => onNavigate('sales-techniques'), color: 'from-rose-500 via-red-600 to-red-700', show: true },
         { name: '计划书概要与数据提取', icon: FolderIcon, action: () => onNavigate('plan-management'), color: 'from-blue-500 via-blue-600 to-indigo-700', show: true },
         { name: '计划书AI对比工具', icon: ChartBarIcon, action: () => onNavigate('plan-comparison'), color: 'from-indigo-500 via-blue-600 to-cyan-700', show: true },
         { name: '计划书制作', icon: DocumentTextIcon, action: () => onNavigate('plan-builder'), color: 'from-purple-500 via-purple-600 to-pink-700', show: true },

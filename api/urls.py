@@ -1,5 +1,9 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from .sales_script_views import (
+    get_categories, get_scripts, record_view, record_copy,
+    toggle_favorite, get_favorites, ai_generate_script,
+)
 from rest_framework_simplejwt.views import TokenRefreshView
 from .views import InsurancePolicyViewSet
 from .auth_views import register, login, user_profile, wechat_login, generate_miniprogram_scheme, wechat_web_auth, wechat_update_profile, wechat_upload_avatar, get_page_permissions
@@ -288,6 +292,15 @@ urlpatterns = [
     path('digital-human/check-subject/', check_subject, name='digital-human-check-subject'),
     path('digital-human/submit-video/', submit_video, name='digital-human-submit-video'),
     path('digital-human/video-status/', get_video_status, name='digital-human-video-status'),
+
+    # 营销话术
+    path('sales-scripts/categories/', get_categories, name='sales-script-categories'),
+    path('sales-scripts/favorites/', get_favorites, name='sales-script-favorites'),
+    path('sales-scripts/ai-generate/', ai_generate_script, name='sales-script-ai-generate'),
+    path('sales-scripts/<int:script_id>/view/', record_view, name='sales-script-view'),
+    path('sales-scripts/<int:script_id>/copy/', record_copy, name='sales-script-copy'),
+    path('sales-scripts/<int:script_id>/favorite/', toggle_favorite, name='sales-script-favorite'),
+    path('sales-scripts/', get_scripts, name='sales-scripts'),
 
     # 计划书提取功能路由已删除
     # path('insurance-companies/', get_insurance_companies, name='insurance-companies'),

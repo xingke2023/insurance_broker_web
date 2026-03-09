@@ -2,6 +2,8 @@ import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom'
 import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import HomePage from './components/HomePage'
+import HomePage2 from './components/HomePage2'
+import SalesTechniques from './components/SalesTechniques'
 import PolicyList from './components/PolicyList'
 import Dashboard from './components/Dashboard'
 import PlanAnalyzer from './components/PlanAnalyzer'
@@ -65,6 +67,8 @@ function App() {
             {/* 公开页面 - 无需登录 */}
             <Route path="/" element={<HomePage />} />
             <Route path="/home" element={<HomePage />} />
+            <Route path="/home2" element={<HomePage2 />} />
+            <Route path="/sales-techniques" element={<SalesTechniques />} />
             <Route path="/ai-hub" element={<AIHub />} />
             <Route path="/ai-office" element={<AIOffice />} />
             <Route path="/ai-media" element={<AIMedia />} />

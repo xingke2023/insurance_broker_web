@@ -1866,3 +1866,95 @@ class CompanyNews(models.Model):
 
     def __str__(self):
         return f"{self.company.name} - {self.title}"
+
+
+class SalesScriptCategory(models.Model):
+    """港险营销话术 - 场景分类"""
+    name = models.CharField(max_length=50, verbose_name='场景名称', help_text='例如：担心安全性')
+    icon = models.CharField(max_length=10, verbose_name='图标(emoji)', default='💬')
+    description = models.CharField(max_length=200, verbose_name='场景描述', blank=True)
+    sort_order = models.IntegerField(default=0, verbose_name='排序', help_text='数字越小越靠前')
+    is_active = models.BooleanField(default=True, verbose_name='是否启用')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'sales_script_category'
+        verbose_name = '话术场景分类'
+        verbose_name_plural = '话术场景分类'
+        ordering = ['sort_order', 'id']
+
+    def __str__(self):
+        return f"{self.icon} {self.name}"
+
+
+class SalesScript(models.Model):
+    """港险营销话术 - 具体话术"""
+    PRODUCT_TYPE_CHOICES = [
+        ('all', '全部产品'),
+        ('savings', '储蓄险'),
+        ('critical_illness', '重疾险'),
+        ('annuity', '年金险'),
+        ('whole_life', '终身寿险'),
+    ]
+    CUSTOMER_TYPE_CHOICES = [
+        ('all', '全部客群'),
+        ('young_family', '年轻家庭'),
+        ('high_net_worth', '高净值客户'),
+        ('education', '子女教育'),
+        ('retirement', '养老规划'),
+        ('asset_inheritance', '资产传承'),
+    ]
+
+    category = models.ForeignKey(
+        SalesScriptCategory,
+        on_delete=models.CASCADE,
+        related_name='scripts',
+        verbose_name='所属场景'
+    )
+    title = models.CharField(max_length=200, verbose_name='话术标题', help_text='简短描述这条话术的用途')
+    customer_question = models.TextField(verbose_name='客户常问', help_text='客户通常会说的话或问的问题')
+    script_content = models.TextField(verbose_name='推荐话术', help_text='经纪人推荐的回应内容')
+    follow_up_question = models.TextField(verbose_name='跟进问题', blank=True, help_text='用于引导客户深入的跟进问题')
+    key_points = models.JSONField(verbose_name='话术要点', default=list, blank=True, help_text='话术中的关键点')
+    applicable_product_type = models.CharField(max_length=30, choices=PRODUCT_TYPE_CHOICES, default='all', verbose_name='适用产品类型')
+    applicable_customer_type = models.CharField(max_length=30, choices=CUSTOMER_TYPE_CHOICES, default='all', verbose_name='适用客群')
+    is_featured = models.BooleanField(default=False, verbose_name='是否精选')
+    is_active = models.BooleanField(default=True, verbose_name='是否启用')
+    view_count = models.IntegerField(default=0, verbose_name='查看次数')
+    copy_count = models.IntegerField(default=0, verbose_name='复制次数')
+    sort_order = models.IntegerField(default=0, verbose_name='排序')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='创建时间')
+    updated_at = models.DateTimeField(auto_now=True, verbose_name='更新时间')
+
+    class Meta:
+        db_table = 'sales_script'
+        verbose_name = '营销话术'
+        verbose_name_plural = '营销话术'
+        ordering = ['-is_featured', 'sort_order', 'id']
+        indexes = [
+            models.Index(fields=['category', 'is_active']),
+            models.Index(fields=['applicable_product_type']),
+            models.Index(fields=['applicable_customer_type']),
+            models.Index(fields=['is_featured']),
+        ]
+
+    def __str__(self):
+        return f"[{self.category.name}] {self.title}"
+
+
+class SalesScriptFavorite(models.Model):
+    """营销话术收藏"""
+    user = models.ForeignKey('auth.User', on_delete=models.CASCADE, related_name='script_favorites', verbose_name='用户')
+    script = models.ForeignKey(SalesScript, on_delete=models.CASCADE, related_name='favorites', verbose_name='话术')
+    note = models.TextField(blank=True, verbose_name='备注')
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name='收藏时间')
+
+    class Meta:
+        db_table = 'sales_script_favorite'
+        verbose_name = '话术收藏'
+        verbose_name_plural = '话术收藏'
+        unique_together = ('user', 'script')
+
+    def __str__(self):
+        return f"{self.user.username} 收藏 [{self.script.title}]"

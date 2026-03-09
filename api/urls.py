@@ -1,5 +1,6 @@
 from django.urls import path, include
 from rest_framework.routers import DefaultRouter
+from .wechat_content_views import generate_topics, generate_article, wechat_oa_config, publish_draft
 from .sales_script_views import (
     get_categories, get_scripts, record_view, record_copy,
     toggle_favorite, get_favorites, ai_generate_script,
@@ -292,6 +293,12 @@ urlpatterns = [
     path('digital-human/check-subject/', check_subject, name='digital-human-check-subject'),
     path('digital-human/submit-video/', submit_video, name='digital-human-submit-video'),
     path('digital-human/video-status/', get_video_status, name='digital-human-video-status'),
+
+    # 自动选题推送及写作
+    path('wechat-content/generate-topics/', generate_topics, name='wechat-content-generate-topics'),
+    path('wechat-content/generate-article/', generate_article, name='wechat-content-generate-article'),
+    path('wechat-content/oa-config/', wechat_oa_config, name='wechat-content-oa-config'),
+    path('wechat-content/publish-draft/', publish_draft, name='wechat-content-publish-draft'),
 
     # 营销话术
     path('sales-scripts/categories/', get_categories, name='sales-script-categories'),

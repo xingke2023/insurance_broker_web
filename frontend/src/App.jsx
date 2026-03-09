@@ -3,6 +3,8 @@ import { AuthProvider } from './context/AuthContext'
 import ProtectedRoute from './components/ProtectedRoute'
 import HomePage from './components/HomePage'
 import HomePage2 from './components/HomePage2'
+import HomePage3 from './components/HomePage3'
+import OpenClawRobot from './components/OpenClawRobot'
 import SalesTechniques from './components/SalesTechniques'
 import PolicyList from './components/PolicyList'
 import Dashboard from './components/Dashboard'
@@ -68,6 +70,8 @@ function App() {
             <Route path="/" element={<HomePage />} />
             <Route path="/home" element={<HomePage />} />
             <Route path="/home2" element={<HomePage2 />} />
+            <Route path="/home3" element={<HomePage3 />} />
+            <Route path="/openclaw-robot" element={<OpenClawRobot />} />
             <Route path="/sales-techniques" element={<SalesTechniques />} />
             <Route path="/ai-hub" element={<AIHub />} />
             <Route path="/ai-office" element={<AIOffice />} />

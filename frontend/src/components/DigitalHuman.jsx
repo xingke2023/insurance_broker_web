@@ -53,6 +53,7 @@ export default function DigitalHuman() {
 
   const [audioFile, setAudioFile] = useState(null);
   const [audioUrl, setAudioUrl] = useState('');
+  const [maskUrls, setMaskUrls] = useState([]);
 
   // 流程
   const [step, setStep] = useState(STEP.IDLE);
@@ -148,6 +149,7 @@ export default function DigitalHuman() {
     setErrorMsg('');
     setTaskId('');
     setPollStatus('');
+    setMaskUrls([]);
     if (pollTimerRef.current) clearInterval(pollTimerRef.current);
 
     try {
@@ -180,12 +182,18 @@ export default function DigitalHuman() {
         return;
       }
 
+      // 保存 mask_urls（步骤2主体检测结果）
+      const detectedMaskUrls = checkData.mask_urls || [];
+      setMaskUrls(detectedMaskUrls);
+
       // 4. 提交视频生成
       setStep(STEP.SUBMITTING_VIDEO);
+      const submitBody = { image_url: imgUrl, audio_url: audUrl };
+      if (detectedMaskUrls.length > 0) submitBody.mask_urls = detectedMaskUrls;
       const submitRes = await authFetch(`${API_BASE_URL}/api/digital-human/submit-video/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ image_url: imgUrl, audio_url: audUrl }),
+        body: JSON.stringify(submitBody),
       });
       const submitData = await submitRes.json();
       if (!submitData.success) {
@@ -266,6 +274,7 @@ export default function DigitalHuman() {
     setImageUrl('');
     setAudioFile(null);
     setAudioUrl('');
+    setMaskUrls([]);
     setTaskId('');
     setPollStatus('');
     setVideoUrl('');

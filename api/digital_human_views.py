@@ -31,8 +31,10 @@ VISUAL_SERVICE = "cv"
 VISUAL_VERSION = "2022-08-31"
 VISUAL_CONTENT_TYPE = "application/json; charset=utf-8"
 
-# OmniHuman req_key
-REQ_KEY_VIDEO = "jimeng_realman_avatar_picture_omni_v2"
+# OmniHuman 1.5 req_keys
+REQ_KEY_ROLE_CHECK = "jimeng_realman_avatar_picture_create_role_omni_v15"   # 步骤1：主体识别（异步）
+REQ_KEY_OBJECT_DETECTION = "jimeng_realman_avatar_object_detection"          # 步骤2：主体检测/mask（同步）
+REQ_KEY_VIDEO = "jimeng_realman_avatar_picture_omni_v15"                    # 步骤3：视频生成（异步）
 
 MEDIA_ROOT = '/var/www/harry-insurance2/media'
 MEDIA_URL_PREFIX = '/media'
@@ -252,31 +254,138 @@ def upload_media(request):
         return JsonResponse({'success': False, 'error': f'上传失败: {str(e)}'}, status=500)
 
 
+def _poll_task(req_key, task_id, max_wait=30, interval=2):
+    """
+    轮询异步任务直到 status==done，返回最终 result JSON。
+    max_wait: 最大等待秒数
+    """
+    deadline = time.time() + max_wait
+    while time.time() < deadline:
+        result = _call_visual_api("CVGetResult", {"req_key": req_key, "task_id": task_id})
+        if _is_api_error(result):
+            return result  # 返回错误让调用方处理
+        data = result.get('data', {}) or {}
+        status = data.get('status', '')
+        if status == 'done':
+            return result
+        if status in ('not_found', 'expired'):
+            return result
+        time.sleep(interval)
+    # 超时
+    return {'code': -1, 'data': {'status': 'timeout'}, 'message': '主体识别超时'}
+
+
 @csrf_exempt
 @require_http_methods(["POST"])
 def check_subject(request):
     """
-    主体识别（已简化）：不再调用单独的检测API，直接返回通过。
-    图片合规性由视频生成接口本身负责校验。
+    步骤1：主体识别（OmniHuman 1.5）
+    提交异步任务识别图片中是否含人/类人主体，轮询完成后返回结果。
+    同时调用步骤2主体检测获取 mask_url（供后续视频生成使用）。
     Body JSON: { "image_url": "https://..." }
-    返回: { success, has_subject, message }
+    返回: { success, has_subject, mask_urls, message }
     """
     try:
+        if not BYTEDANCE_ACCESS_KEY or not BYTEDANCE_SECRET_KEY:
+            return JsonResponse({'success': False, 'error': 'AKSK 未配置'}, status=500)
+
         data = json.loads(request.body)
         image_url = data.get('image_url', '').strip()
         if not image_url:
             return JsonResponse({'success': False, 'error': '请提供 image_url'}, status=400)
 
+        # ── 步骤1：主体识别（异步）──────────────────────────────
+        submit_result = _call_visual_api("CVSubmitTask", {
+            "req_key": REQ_KEY_ROLE_CHECK,
+            "image_url": image_url,
+        })
+        logger.info(f"主体识别提交结果: {submit_result}")
+
+        if _is_api_error(submit_result):
+            return JsonResponse({
+                'success': False,
+                'error': f'主体识别提交失败: {_get_error_msg(submit_result)}'
+            }, status=400)
+
+        role_task_id = _get_task_id(submit_result)
+        if not role_task_id:
+            return JsonResponse({
+                'success': False,
+                'error': '主体识别提交未返回 task_id'
+            }, status=500)
+
+        # 轮询识别结果
+        role_result = _poll_task(REQ_KEY_ROLE_CHECK, role_task_id, max_wait=30, interval=2)
+        logger.info(f"主体识别结果: {role_result}")
+
+        if _is_api_error(role_result):
+            return JsonResponse({
+                'success': False,
+                'error': f'主体识别查询失败: {_get_error_msg(role_result)}'
+            }, status=400)
+
+        role_data = role_result.get('data', {}) or {}
+        role_status = role_data.get('status', '')
+        if role_status in ('timeout', 'not_found', 'expired'):
+            return JsonResponse({
+                'success': False,
+                'error': f'主体识别任务异常: {role_status}'
+            }, status=400)
+
+        # 解析 resp_data（JSON字符串）
+        resp_data_str = role_data.get('resp_data', '{}')
+        try:
+            resp_data = json.loads(resp_data_str) if isinstance(resp_data_str, str) else resp_data_str
+        except Exception:
+            resp_data = {}
+
+        has_subject = int(resp_data.get('status', 0)) == 1
+        logger.info(f"主体识别 has_subject={has_subject}, resp_data={resp_data}")
+
+        if not has_subject:
+            return JsonResponse({
+                'success': True,
+                'has_subject': False,
+                'mask_urls': [],
+                'message': '图片中未检测到人物或类人主体，请重新上传包含清晰人物的图片',
+            })
+
+        # ── 步骤2：主体检测获取 mask_url（同步）──────────────────
+        mask_urls = []
+        try:
+            detect_result = _call_visual_api("CVProcess", {
+                "req_key": REQ_KEY_OBJECT_DETECTION,
+                "image_url": image_url,
+            })
+            logger.info(f"主体检测结果: {detect_result}")
+
+            if not _is_api_error(detect_result):
+                detect_data = detect_result.get('data', {}) or {}
+                detect_resp_str = detect_data.get('resp_data', '{}')
+                try:
+                    detect_resp = json.loads(detect_resp_str) if isinstance(detect_resp_str, str) else detect_resp_str
+                except Exception:
+                    detect_resp = {}
+
+                if int(detect_resp.get('status', 0)) == 1:
+                    urls = detect_resp.get('object_detection_result', {}).get('mask', {}).get('url', [])
+                    mask_urls = urls if isinstance(urls, list) else []
+                    logger.info(f"获取到 mask_urls: {mask_urls}")
+        except Exception as e:
+            # mask 获取失败不阻断流程
+            logger.warning(f"主体检测(mask)获取失败（不影响视频生成）: {e}")
+
         return JsonResponse({
             'success': True,
             'has_subject': True,
-            'task_id': '',
-            'message': '图片已准备好，即将提交视频生成任务',
+            'mask_urls': mask_urls,
+            'message': '检测到人物主体，即将提交视频生成任务',
         })
 
     except json.JSONDecodeError:
         return JsonResponse({'success': False, 'error': '无效的JSON数据'}, status=400)
     except Exception as e:
+        logger.error(f"主体检测错误: {str(e)}", exc_info=True)
         return JsonResponse({'success': False, 'error': str(e)}, status=500)
 
 
@@ -303,9 +412,13 @@ def submit_video(request):
 
         submit_body = {
             "req_key": REQ_KEY_VIDEO,
-            "image_urls": [image_url],
+            "image_url": image_url,
             "audio_url": audio_url,
         }
+        # 可选：指定说话主体的 mask（来自步骤2主体检测）
+        mask_urls = data.get('mask_urls', [])
+        if mask_urls and isinstance(mask_urls, list):
+            submit_body["mask_url"] = mask_urls
         result = _call_visual_api("CVSubmitTask", submit_body)
         logger.info(f"视频生成提交结果: {result}")
 
